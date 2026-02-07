@@ -1,0 +1,23 @@
+{
+  "name": "Oréma N+ - Système de Caisse POS",
+  "short_name": "Oréma N+",
+  "description": "Système de point de vente moderne pour restaurants, bars et commerces en Afrique",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#f97316",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "finance", "productivity"],
+  "lang": "fr",
+  "dir": "ltr",
+  "scope": "/",
+  "prefer_related_applications": false
+}

@@ -1,0 +1,953 @@
+'use server'
+
+/**
+ * Server Actions pour la gestion des employes
+ * CRUD employe, reset PIN, statistiques
+ * Migré de Prisma vers Supabase
+ *
+ * Synchronise avec Supabase Auth ET la table utilisateurs.
+ */
+
+import { revalidatePath } from 'next/cache'
+import { createServiceClient, db } from '@/lib/db'
+import { hashPassword, hashPin, requireAuth, requireAnyRole } from '@/lib/auth'
+import {
+  createEmployeSchema,
+  updateEmployeSchema,
+  resetPinSchema,
+  resetPasswordSchema,
+  toggleStatusSchema,
+  type CreateEmployeInput,
+  type UpdateEmployeInput,
+  type ResetPinInput,
+  type ResetPasswordInput,
+  type ToggleStatusInput,
+} from '@/schemas/employe'
+
+type ActionResult<T = void> = {
+  success: boolean
+  error?: string
+  data?: T
+}
+
+/**
+ * Genere un code PIN aleatoire de 4 chiffres
+ */
+export async function generateRandomPin(): Promise<string> {
+  return Math.floor(1000 + Math.random() * 9000).toString()
+}
+
+/**
+ * Recuperer tous les employes de l'etablissement
+ * Protection: Le SUPER_ADMIN n'est visible que par lui-même ou d'autres SUPER_ADMIN
+ */
+export async function getEmployes(): Promise<
+  ActionResult<
+    Array<{
+      id: string
+      nom: string
+      prenom: string
+      email: string
+      role: string
+      actif: boolean
+      createdAt: Date
+      hasPin: boolean
+      allowed_routes?: string[]
+    }>
+  >
+> {
+  try {
+    const session = await requireAuth()
+    const supabase = createServiceClient()
+
+    const employes = await db.getEmployes(supabase, session.etablissementId)
+
+    // Filtrer les SUPER_ADMIN si l'utilisateur courant n'est pas SUPER_ADMIN
+    const filteredEmployes = employes.filter((e) => {
+      // Si l'employe est SUPER_ADMIN
+      if (e.role === 'SUPER_ADMIN') {
+        // Seul un SUPER_ADMIN peut le voir, ou c'est lui-même
+        return session.role === 'SUPER_ADMIN' || e.id === session.userId
+      }
+      return true
+    })
+
+    return {
+      success: true,
+      data: filteredEmployes.map((e) => ({
+        id: e.id,
+        nom: e.nom,
+        prenom: e.prenom,
+        email: e.email,
+        role: e.role,
+        actif: e.actif,
+        createdAt: new Date(e.created_at),
+        hasPin: !!e.pin_code,
+        allowed_routes: (e as Record<string, unknown>).allowed_routes as string[] | undefined,
+      })),
+    }
+  } catch (error) {
+    console.error('Erreur recuperation employes:', error)
+    return {
+      success: false,
+      error: 'Erreur lors de la recuperation des employes',
+    }
+  }
+}
+
+/**
+ * Recuperer un employe par son ID
+ */
+export async function getEmployeById(
+  id: string
+): Promise<
+  ActionResult<{
+    id: string
+    nom: string
+    prenom: string
+    email: string
+    role: string
+    actif: boolean
+    createdAt: Date
+    hasPin: boolean
+  }>
+> {
+  try {
+    const session = await requireAuth()
+    const supabase = createServiceClient()
+
+    const employe = await db.getEmployeById(supabase, id)
+
+    if (!employe || employe.etablissement_id !== session.etablissementId) {
+      return {
+        success: false,
+        error: 'Employe non trouve',
+      }
+    }
+
+    return {
+      success: true,
+      data: {
+        id: employe.id,
+        nom: employe.nom,
+        prenom: employe.prenom,
+        email: employe.email,
+        role: employe.role,
+        actif: employe.actif,
+        createdAt: new Date(employe.created_at),
+        hasPin: !!employe.pin_code,
+      },
+    }
+  } catch (error) {
+    console.error('Erreur recuperation employe:', error)
+    return {
+      success: false,
+      error: 'Erreur lors de la recuperation de l\'employe',
+    }
+  }
+}
+
+/**
+ * Creer un nouvel employe
+ *
+ * Cree l'utilisateur dans Supabase Auth (le trigger synchronise avec utilisateurs)
+ * puis met à jour les données supplémentaires (mot de passe hashé, PIN).
+ */
+export async function createEmploye(
+  input: CreateEmployeInput
+): Promise<ActionResult<string>> {
+  try {
+    // Verifier les permissions (SUPER_ADMIN ou ADMIN)
+    const session = await requireAnyRole(['SUPER_ADMIN', 'ADMIN'])
+    const supabase = createServiceClient()
+
+    // Valider les donnees
+    const validated = createEmployeSchema.parse(input)
+
+    // Verifier que l'email n'existe pas deja
+    const emailExists = await db.emailExists(supabase, validated.email)
+
+    if (emailExists) {
+      return {
+        success: false,
+        error: 'Cet email est deja utilise',
+      }
+    }
+
+    // 1. Creer l'utilisateur dans Supabase Auth
+    // Le trigger on_auth_user_created synchronise automatiquement avec utilisateurs
+    const adminSupabase = createServiceClient()
+    const { data: authData, error: authError } = await adminSupabase.auth.admin.createUser({
+      email: validated.email,
+      password: validated.password,
+      email_confirm: true,
+      user_metadata: {
+        nom: validated.nom,
+        prenom: validated.prenom,
+        role: validated.role,
+        etablissement_id: session.etablissementId,
+      },
+    })
+
+    if (authError) {
+      console.error('Erreur creation Supabase Auth:', authError)
+      return {
+        success: false,
+        error: `Erreur Supabase Auth: ${authError.message}`,
+      }
+    }
+
+    if (!authData.user) {
+      return {
+        success: false,
+        error: 'Erreur: utilisateur non cree dans Supabase Auth',
+      }
+    }
+
+    // 2. Hasher le mot de passe pour la table utilisateurs (backup)
+    const hashedPassword = await hashPassword(validated.password)
+
+    // 3. Hasher le PIN si fourni
+    let hashedPin: string | null = null
+    if (validated.pinCode) {
+      hashedPin = await hashPin(validated.pinCode)
+    }
+
+    // 4. Mettre à jour l'employe créé par le trigger avec les données complètes
+    // Le trigger crée l'utilisateur avec les métadonnées, on ajoute le mot de passe hashé et le PIN
+    const { data: employe, error: updateError } = await adminSupabase
+      .from('utilisateurs')
+      .update({
+        password: hashedPassword,
+        pin_code: hashedPin,
+        actif: validated.actif,
+        etablissement_id: session.etablissementId,
+      })
+      .eq('email', validated.email)
+      .select()
+      .single()
+
+    if (updateError || !employe) {
+      console.error('Erreur mise à jour employe:', updateError)
+      return {
+        success: false,
+        error: 'Erreur lors de la finalisation de la création',
+      }
+    }
+
+    // 5. Logger l'audit
+    await db.createAuditLog(supabase, {
+      action: 'CREATE',
+      entite: 'Utilisateur',
+      entite_id: employe.id,
+      description: `Creation employe ${employe.prenom} ${employe.nom} (${employe.role})`,
+      utilisateur_id: session.userId,
+      etablissement_id: session.etablissementId,
+    })
+
+    revalidatePath('/employes')
+
+    return {
+      success: true,
+      data: employe.id,
+    }
+  } catch (error) {
+    console.error('Erreur creation employe:', error)
+    return {
+      success: false,
+      error: 'Erreur lors de la creation de l\'employe',
+    }
+  }
+}
+
+/**
+ * Mettre a jour un employe
+ * Protection: Un ADMIN ne peut pas modifier un SUPER_ADMIN.
+ */
+export async function updateEmploye(
+  input: UpdateEmployeInput
+): Promise<ActionResult> {
+  try {
+    // Verifier les permissions
+    const session = await requireAnyRole(['SUPER_ADMIN', 'ADMIN'])
+    const supabase = createServiceClient()
+
+    // Valider les donnees
+    const validated = updateEmployeSchema.parse(input)
+
+    // Verifier que l'employe existe et appartient a l'etablissement
+    const existingEmploye = await db.getEmployeById(supabase, validated.id)
+
+    if (!existingEmploye || existingEmploye.etablissement_id !== session.etablissementId) {
+      return {
+        success: false,
+        error: 'Employe non trouve',
+      }
+    }
+
+    // Protection SUPER_ADMIN: Un ADMIN ne peut pas modifier un SUPER_ADMIN
+    if (existingEmploye.role === 'SUPER_ADMIN' && session.role !== 'SUPER_ADMIN') {
+      return {
+        success: false,
+        error: 'Vous n\'avez pas l\'autorisation de modifier un Super Administrateur',
+      }
+    }
+
+    // Verifier si l'email est deja utilise par un autre utilisateur
+    if (validated.email !== existingEmploye.email) {
+      const emailExists = await db.emailExists(supabase, validated.email, validated.id)
+
+      if (emailExists) {
+        return {
+          success: false,
+          error: 'Cet email est deja utilise',
+        }
+      }
+    }
+
+    // Mettre a jour l'employe
+    await db.updateEmploye(supabase, validated.id, {
+      nom: validated.nom,
+      prenom: validated.prenom,
+      email: validated.email,
+      role: validated.role,
+      actif: validated.actif,
+    })
+
+    // Logger l'audit
+    await db.createAuditLog(supabase, {
+      action: 'UPDATE',
+      entite: 'Utilisateur',
+      entite_id: validated.id,
+      description: `Mise a jour employe ${validated.prenom} ${validated.nom}`,
+      utilisateur_id: session.userId,
+      etablissement_id: session.etablissementId,
+    })
+
+    revalidatePath('/employes')
+
+    return { success: true }
+  } catch (error) {
+    console.error('Erreur mise a jour employe:', error)
+    return {
+      success: false,
+      error: 'Erreur lors de la mise a jour de l\'employe',
+    }
+  }
+}
+
+/**
+ * Reset le code PIN d'un employe
+ * Protection: Un ADMIN ne peut pas modifier le PIN d'un SUPER_ADMIN.
+ */
+export async function resetEmployePin(
+  input: ResetPinInput
+): Promise<ActionResult<string>> {
+  try {
+    // Verifier les permissions
+    const session = await requireAnyRole(['SUPER_ADMIN', 'ADMIN'])
+    const supabase = createServiceClient()
+
+    // Valider les donnees
+    const validated = resetPinSchema.parse(input)
+
+    // Verifier que l'employe existe
+    const employe = await db.getEmployeById(supabase, validated.employeId)
+
+    if (!employe || employe.etablissement_id !== session.etablissementId) {
+      return {
+        success: false,
+        error: 'Employe non trouve',
+      }
+    }
+
+    // Protection SUPER_ADMIN: Un ADMIN ne peut pas modifier le PIN d'un SUPER_ADMIN
+    if (employe.role === 'SUPER_ADMIN' && session.role !== 'SUPER_ADMIN') {
+      return {
+        success: false,
+        error: 'Vous n\'avez pas l\'autorisation de modifier le PIN d\'un Super Administrateur',
+      }
+    }
+
+    // Hasher le nouveau PIN
+    const hashedPin = await hashPin(validated.newPin)
+
+    // Mettre a jour
+    await db.updateEmployePin(supabase, validated.employeId, hashedPin)
+
+    // Logger l'audit
+    await db.createAuditLog(supabase, {
+      action: 'UPDATE',
+      entite: 'Utilisateur',
+      entite_id: validated.employeId,
+      description: `Reset PIN employe ${employe.prenom} ${employe.nom}`,
+      utilisateur_id: session.userId,
+      etablissement_id: session.etablissementId,
+    })
+
+    revalidatePath('/employes')
+
+    return {
+      success: true,
+      data: validated.newPin,
+    }
+  } catch (error) {
+    console.error('Erreur reset PIN:', error)
+    return {
+      success: false,
+      error: 'Erreur lors du reset du PIN',
+    }
+  }
+}
+
+/**
+ * Reset le mot de passe d'un employe
+ *
+ * Met a jour le mot de passe dans Supabase Auth ET dans la table utilisateurs.
+ * Protection: Un ADMIN ne peut pas modifier le mot de passe d'un SUPER_ADMIN.
+ */
+export async function resetEmployePassword(
+  input: ResetPasswordInput
+): Promise<ActionResult> {
+  try {
+    // Verifier les permissions
+    const session = await requireAnyRole(['SUPER_ADMIN', 'ADMIN'])
+    const supabase = createServiceClient()
+
+    // Valider les donnees
+    const validated = resetPasswordSchema.parse(input)
+
+    // Verifier que l'employe existe
+    const employe = await db.getEmployeById(supabase, validated.employeId)
+
+    if (!employe || employe.etablissement_id !== session.etablissementId) {
+      return {
+        success: false,
+        error: 'Employe non trouve',
+      }
+    }
+
+    // Protection SUPER_ADMIN: Un ADMIN ne peut pas modifier le mot de passe d'un SUPER_ADMIN
+    if (employe.role === 'SUPER_ADMIN' && session.role !== 'SUPER_ADMIN') {
+      return {
+        success: false,
+        error: 'Vous n\'avez pas l\'autorisation de modifier le mot de passe d\'un Super Administrateur',
+      }
+    }
+
+    // 1. Trouver l'utilisateur dans Supabase Auth par email
+    const adminSupabase = createServiceClient()
+    const { data: authUsers, error: listError } = await adminSupabase.auth.admin.listUsers()
+
+    if (listError) {
+      console.error('Erreur liste utilisateurs Supabase:', listError)
+    } else {
+      // Trouver l'utilisateur par email
+      const authUser = authUsers.users.find((u) => u.email === employe.email)
+
+      if (authUser) {
+        // 2. Mettre a jour le mot de passe dans Supabase Auth
+        const { error: updateError } = await adminSupabase.auth.admin.updateUserById(
+          authUser.id,
+          { password: validated.newPassword }
+        )
+
+        if (updateError) {
+          console.error('Erreur update password Supabase:', updateError)
+          // Continuer meme si Supabase echoue (fallback table utilisateurs)
+        }
+      }
+    }
+
+    // 3. Hasher le nouveau mot de passe
+    const hashedPassword = await hashPassword(validated.newPassword)
+
+    // 4. Mettre a jour dans la table utilisateurs
+    await db.updateEmployePassword(supabase, validated.employeId, hashedPassword)
+
+    // 5. Logger l'audit
+    await db.createAuditLog(supabase, {
+      action: 'UPDATE',
+      entite: 'Utilisateur',
+      entite_id: validated.employeId,
+      description: `Reset mot de passe employe ${employe.prenom} ${employe.nom}`,
+      utilisateur_id: session.userId,
+      etablissement_id: session.etablissementId,
+    })
+
+    revalidatePath('/employes')
+
+    return { success: true }
+  } catch (error) {
+    console.error('Erreur reset mot de passe:', error)
+    return {
+      success: false,
+      error: 'Erreur lors du reset du mot de passe',
+    }
+  }
+}
+
+/**
+ * Activer/Desactiver un employe
+ */
+export async function toggleEmployeStatus(
+  input: ToggleStatusInput
+): Promise<ActionResult> {
+  try {
+    // Verifier les permissions
+    const session = await requireAnyRole(['SUPER_ADMIN', 'ADMIN'])
+    const supabase = createServiceClient()
+
+    // Valider les donnees
+    const validated = toggleStatusSchema.parse(input)
+
+    // Verifier que l'employe existe
+    const employe = await db.getEmployeById(supabase, validated.employeId)
+
+    if (!employe || employe.etablissement_id !== session.etablissementId) {
+      return {
+        success: false,
+        error: 'Employe non trouve',
+      }
+    }
+
+    // Empecher la desactivation de son propre compte
+    if (validated.employeId === session.userId && !validated.actif) {
+      return {
+        success: false,
+        error: 'Vous ne pouvez pas desactiver votre propre compte',
+      }
+    }
+
+    // Protection SUPER_ADMIN: Un ADMIN ne peut pas activer/desactiver un SUPER_ADMIN
+    if (employe.role === 'SUPER_ADMIN' && session.role !== 'SUPER_ADMIN') {
+      return {
+        success: false,
+        error: 'Vous n\'avez pas l\'autorisation de modifier le statut d\'un Super Administrateur',
+      }
+    }
+
+    // Mettre a jour le statut
+    await db.updateEmploye(supabase, validated.employeId, {
+      actif: validated.actif,
+    })
+
+    // Logger l'audit
+    await db.createAuditLog(supabase, {
+      action: 'UPDATE',
+      entite: 'Utilisateur',
+      entite_id: validated.employeId,
+      description: `${validated.actif ? 'Activation' : 'Desactivation'} employe ${employe.prenom} ${employe.nom}`,
+      utilisateur_id: session.userId,
+      etablissement_id: session.etablissementId,
+    })
+
+    revalidatePath('/employes')
+
+    return { success: true }
+  } catch (error) {
+    console.error('Erreur toggle statut:', error)
+    return {
+      success: false,
+      error: 'Erreur lors du changement de statut',
+    }
+  }
+}
+
+/**
+ * Supprimer un employe
+ *
+ * Supprime l'utilisateur de Supabase Auth ET de la table utilisateurs.
+ */
+export async function deleteEmploye(employeId: string): Promise<ActionResult> {
+  try {
+    // Verifier les permissions
+    const session = await requireAnyRole(['SUPER_ADMIN', 'ADMIN'])
+    const supabase = createServiceClient()
+
+    // Verifier que l'employe existe
+    const employe = await db.getEmployeById(supabase, employeId)
+
+    if (!employe || employe.etablissement_id !== session.etablissementId) {
+      return {
+        success: false,
+        error: 'Employe non trouve',
+      }
+    }
+
+    // Empecher la suppression de son propre compte
+    if (employeId === session.userId) {
+      return {
+        success: false,
+        error: 'Vous ne pouvez pas supprimer votre propre compte',
+      }
+    }
+
+    // Protection SUPER_ADMIN: On ne peut jamais supprimer un SUPER_ADMIN
+    if (employe.role === 'SUPER_ADMIN') {
+      return {
+        success: false,
+        error: 'Le compte Super Administrateur ne peut pas etre supprime. Vous pouvez le desactiver si necessaire.',
+      }
+    }
+
+    // Protection: Seul SUPER_ADMIN peut supprimer des utilisateurs
+    if (session.role !== 'SUPER_ADMIN') {
+      return {
+        success: false,
+        error: 'Seul un Super Administrateur peut supprimer des comptes. Vous pouvez desactiver le compte a la place.',
+      }
+    }
+
+    // Verifier s'il a des ventes associees
+    const ventesCount = await db.countVentes(supabase, session.etablissementId, {
+      statut: undefined, // Toutes les ventes
+    })
+
+    // Note: countVentes ne filtre pas par utilisateur actuellement
+    // On utilise une requête directe pour le moment
+    const { count: userVentesCount } = await supabase
+      .from('ventes')
+      .select('*', { count: 'exact', head: true })
+      .eq('utilisateur_id', employeId)
+
+    if ((userVentesCount ?? 0) > 0) {
+      return {
+        success: false,
+        error: `Cet employe a ${userVentesCount} vente(s) associee(s). Desactivez le compte plutot que de le supprimer.`,
+      }
+    }
+
+    // 1. Supprimer de Supabase Auth
+    const adminSupabase = createServiceClient()
+    const { data: authUsers, error: listError } = await adminSupabase.auth.admin.listUsers()
+
+    if (!listError && authUsers) {
+      const authUser = authUsers.users.find((u) => u.email === employe.email)
+
+      if (authUser) {
+        const { error: deleteAuthError } = await adminSupabase.auth.admin.deleteUser(
+          authUser.id
+        )
+
+        if (deleteAuthError) {
+          console.error('Erreur suppression Supabase Auth:', deleteAuthError)
+          // Continuer meme si Supabase echoue
+        }
+      }
+    }
+
+    // 2. Supprimer de la table utilisateurs
+    await db.deleteEmploye(supabase, employeId)
+
+    // 3. Logger l'audit
+    await db.createAuditLog(supabase, {
+      action: 'DELETE',
+      entite: 'Utilisateur',
+      entite_id: employeId,
+      description: `Suppression employe ${employe.prenom} ${employe.nom}`,
+      utilisateur_id: session.userId,
+      etablissement_id: session.etablissementId,
+    })
+
+    revalidatePath('/employes')
+
+    return { success: true }
+  } catch (error) {
+    console.error('Erreur suppression employe:', error)
+    return {
+      success: false,
+      error: 'Erreur lors de la suppression de l\'employe',
+    }
+  }
+}
+
+/**
+ * Synchroniser un employe existant avec Supabase Auth
+ *
+ * Cree le compte Supabase Auth pour un utilisateur qui n'en a pas.
+ * Utilise pour les utilisateurs crees avant l'integration Supabase.
+ */
+export async function syncEmployeToSupabase(
+  employeId: string,
+  password: string
+): Promise<ActionResult> {
+  try {
+    // Verifier les permissions
+    const session = await requireAnyRole(['SUPER_ADMIN', 'ADMIN'])
+    const supabase = createServiceClient()
+
+    // Verifier que l'employe existe
+    const employe = await db.getEmployeById(supabase, employeId)
+
+    if (!employe || employe.etablissement_id !== session.etablissementId) {
+      return {
+        success: false,
+        error: 'Employe non trouve',
+      }
+    }
+
+    // Verifier si l'utilisateur existe deja dans Supabase Auth
+    const adminSupabase = createServiceClient()
+    const { data: authUsers, error: listError } = await adminSupabase.auth.admin.listUsers()
+
+    if (listError) {
+      return {
+        success: false,
+        error: `Erreur Supabase: ${listError.message}`,
+      }
+    }
+
+    const existingAuthUser = authUsers.users.find((u) => u.email === employe.email)
+
+    if (existingAuthUser) {
+      return {
+        success: false,
+        error: 'Cet utilisateur existe deja dans Supabase Auth',
+      }
+    }
+
+    // Creer l'utilisateur dans Supabase Auth
+    const { data: authData, error: createError } = await adminSupabase.auth.admin.createUser({
+      email: employe.email,
+      password: password,
+      email_confirm: true,
+      user_metadata: {
+        nom: employe.nom,
+        prenom: employe.prenom,
+        role: employe.role,
+      },
+    })
+
+    if (createError) {
+      return {
+        success: false,
+        error: `Erreur creation Supabase Auth: ${createError.message}`,
+      }
+    }
+
+    // Mettre a jour le mot de passe dans la table aussi
+    const hashedPassword = await hashPassword(password)
+    await db.updateEmployePassword(supabase, employeId, hashedPassword)
+
+    // Logger l'audit
+    await db.createAuditLog(supabase, {
+      action: 'UPDATE',
+      entite: 'Utilisateur',
+      entite_id: employeId,
+      description: `Synchronisation Supabase Auth employe ${employe.prenom} ${employe.nom}`,
+      utilisateur_id: session.userId,
+      etablissement_id: session.etablissementId,
+    })
+
+    return { success: true }
+  } catch (error) {
+    console.error('Erreur sync Supabase:', error)
+    return {
+      success: false,
+      error: 'Erreur lors de la synchronisation',
+    }
+  }
+}
+
+/**
+ * Statistiques d'un employe
+ */
+export async function getEmployeStats(employeId: string): Promise<
+  ActionResult<{
+    totalVentes: number
+    chiffreAffaires: number
+    panierMoyen: number
+    ventesAujourdhui: number
+    caAujourdhui: number
+  }>
+> {
+  try {
+    const session = await requireAuth()
+    const supabase = createServiceClient()
+
+    // Verifier que l'employe existe dans l'etablissement
+    const employe = await db.getEmployeById(supabase, employeId)
+
+    if (!employe || employe.etablissement_id !== session.etablissementId) {
+      return {
+        success: false,
+        error: 'Employe non trouve',
+      }
+    }
+
+    // Debut du jour
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const todayISO = today.toISOString()
+
+    // Stats globales - ventes payées de cet employé
+    const { data: ventesGlobales } = await supabase
+      .from('ventes')
+      .select('total_final')
+      .eq('utilisateur_id', employeId)
+      .eq('statut', 'PAYEE')
+
+    const totalVentes = ventesGlobales?.length ?? 0
+    const chiffreAffaires = (ventesGlobales ?? []).reduce(
+      (sum, v) => sum + Number(v.total_final),
+      0
+    )
+    const panierMoyen = totalVentes > 0 ? Math.round(chiffreAffaires / totalVentes) : 0
+
+    // Stats du jour
+    const { data: ventesJour } = await supabase
+      .from('ventes')
+      .select('total_final')
+      .eq('utilisateur_id', employeId)
+      .eq('statut', 'PAYEE')
+      .gte('created_at', todayISO)
+
+    const ventesAujourdhui = ventesJour?.length ?? 0
+    const caAujourdhui = (ventesJour ?? []).reduce(
+      (sum, v) => sum + Number(v.total_final),
+      0
+    )
+
+    return {
+      success: true,
+      data: {
+        totalVentes,
+        chiffreAffaires,
+        panierMoyen,
+        ventesAujourdhui,
+        caAujourdhui,
+      },
+    }
+  } catch (error) {
+    console.error('Erreur statistiques employe:', error)
+    return {
+      success: false,
+      error: 'Erreur lors de la recuperation des statistiques',
+    }
+  }
+}
+
+/**
+ * Mettre a jour les pages autorisees pour un employe
+ * Permet aux admins de restreindre l'acces a certaines pages
+ */
+// ============= Gestion des pages par rôle =============
+
+/**
+ * Récupérer la configuration des pages autorisées par rôle
+ */
+export async function getRoleAllowedRoutes(): Promise<
+  ActionResult<Record<string, string[] | null>>
+> {
+  try {
+    const session = await requireAnyRole(['SUPER_ADMIN', 'ADMIN'])
+    const { getAllRoleAllowedRoutes } = await import('@/lib/permissions-db')
+    const config = await getAllRoleAllowedRoutes(session.etablissementId)
+    return { success: true, data: config }
+  } catch (error) {
+    console.error('Erreur récupération config pages par rôle:', error)
+    return { success: false, error: 'Erreur lors de la récupération' }
+  }
+}
+
+/**
+ * Sauvegarder les pages autorisées pour un rôle
+ */
+export async function saveRoleAllowedRoutes(input: {
+  role: 'MANAGER' | 'CAISSIER' | 'SERVEUR'
+  allowedRoutes: string[] | null
+}): Promise<ActionResult> {
+  try {
+    const session = await requireAnyRole(['SUPER_ADMIN', 'ADMIN'])
+    const supabase = createServiceClient()
+
+    const { saveAllowedRoutesForRole } = await import('@/lib/permissions-db')
+    await saveAllowedRoutesForRole(input.role, input.allowedRoutes, session.etablissementId)
+
+    // Logger l'audit
+    await db.createAuditLog(supabase, {
+      action: 'UPDATE',
+      entite: 'RolePermission',
+      entite_id: input.role,
+      description: `Modification des pages autorisées pour le rôle ${input.role} (${input.allowedRoutes ? input.allowedRoutes.length + ' pages' : 'accès standard'})`,
+      utilisateur_id: session.userId,
+      etablissement_id: session.etablissementId,
+    })
+
+    revalidatePath('/employes')
+    return { success: true }
+  } catch (error) {
+    console.error('Erreur sauvegarde pages par rôle:', error)
+    return { success: false, error: 'Erreur lors de la sauvegarde' }
+  }
+}
+
+// ============= Gestion des pages par utilisateur =============
+
+/**
+ * Mettre a jour les pages autorisees pour un employe
+ * Permet aux admins de restreindre l'acces a certaines pages
+ */
+export async function updateEmployeAllowedRoutes(input: {
+  employeId: string
+  allowedRoutes: string[]
+}): Promise<ActionResult> {
+  try {
+    // Verifier les permissions (seuls les admins peuvent modifier les acces)
+    const session = await requireAnyRole(['SUPER_ADMIN', 'ADMIN'])
+    const supabase = createServiceClient()
+
+    // Verifier que l'employe existe
+    const employe = await db.getEmployeById(supabase, input.employeId)
+
+    if (!employe || employe.etablissement_id !== session.etablissementId) {
+      return {
+        success: false,
+        error: 'Employe non trouve',
+      }
+    }
+
+    // Ne pas permettre la modification des acces pour les admins
+    if (employe.role === 'SUPER_ADMIN' || employe.role === 'ADMIN') {
+      return {
+        success: false,
+        error: 'Les administrateurs ont acces a toutes les pages par defaut',
+      }
+    }
+
+    // Mettre a jour les allowed_routes
+    const { error: updateError } = await supabase
+      .from('utilisateurs')
+      .update({ allowed_routes: input.allowedRoutes })
+      .eq('id', input.employeId)
+
+    if (updateError) {
+      console.error('Erreur update allowed_routes:', updateError)
+      return {
+        success: false,
+        error: 'Erreur lors de la mise a jour des acces',
+      }
+    }
+
+    // Logger l'audit
+    await db.createAuditLog(supabase, {
+      action: 'UPDATE',
+      entite: 'Utilisateur',
+      entite_id: input.employeId,
+      description: `Modification des pages autorisees pour ${employe.prenom} ${employe.nom} (${input.allowedRoutes.length} pages)`,
+      utilisateur_id: session.userId,
+      etablissement_id: session.etablissementId,
+    })
+
+    revalidatePath('/employes')
+
+    return { success: true }
+  } catch (error) {
+    console.error('Erreur mise a jour allowed_routes:', error)
+    return {
+      success: false,
+      error: 'Erreur lors de la mise a jour des acces',
+    }
+  }
+}

@@ -1,0 +1,9 @@
+# Ignore node_modules
+node_modules/
+
+# Allow only specific markdown files at root
+!README.md
+!CLAUDE.md
+
+# Ignore all other markdown files at root (they should be in /docs)
+/*.md

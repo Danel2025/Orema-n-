@@ -1,0 +1,77 @@
+# Configuration Supabase pour Oréma N+
+# Documentation: https://supabase.com/docs/guides/cli/config
+
+[project]
+# ID du projet Supabase (remplacer par votre ID en production)
+# id = "votre-project-id"
+
+[api]
+# Activer les headers CORS
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+# Configuration de la base de données
+port = 54322
+major_version = 15
+
+[studio]
+# Supabase Studio
+enabled = true
+port = 54323
+api_url = "http://localhost"
+
+[inbucket]
+# Serveur email local pour le dev
+enabled = true
+port = 54324
+smtp_port = 54325
+pop3_port = 54326
+
+[auth]
+# Configuration de l'authentification
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000"]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
+
+[auth.sms]
+enable_signup = false
+enable_confirmations = false
+
+[realtime]
+# Configuration Realtime
+enabled = true
+# ip_version = "4"
+
+# ============================================================================
+# EDGE FUNCTIONS
+# ============================================================================
+
+[functions.webhook-mobile-money]
+# Webhook pour les confirmations Mobile Money (Airtel/Moov)
+verify_jwt = false  # Les webhooks externes n'ont pas de JWT
+
+[functions.rapport-z-auto]
+# Génération automatique des rapports Z (appelé par CRON)
+verify_jwt = false  # Authentifié via CRON_SECRET
+
+[functions.send-sms]
+# Envoi de SMS aux clients
+verify_jwt = true  # Nécessite authentification
+
+# ============================================================================
+# ANALYTICS (optionnel)
+# ============================================================================
+
+[analytics]
+enabled = false
+port = 54327
+backend = "postgres"

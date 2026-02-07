@@ -1,0 +1,35 @@
+import { Suspense } from "react";
+import { Box, Flex, Heading, Text, Tabs } from "@radix-ui/themes";
+import { Package, AlertTriangle, ClipboardList, TrendingUp } from "lucide-react";
+import { StocksContent } from "./stocks-content";
+import { Loading } from "@/components/shared/loading";
+
+export const metadata = {
+  title: "Stocks | Oréma N+",
+  description: "Gestion des inventaires et mouvements de stock",
+};
+
+export default function StocksPage() {
+  return (
+    <Box p="4">
+      <Flex direction="column" gap="4">
+        {/* En-tête */}
+        <Flex justify="between" align="center" wrap="wrap" gap="3">
+          <Box>
+            <Heading size="6" weight="bold">
+              Gestion des stocks
+            </Heading>
+            <Text size="2" color="gray">
+              Inventaires, mouvements et alertes de stock
+            </Text>
+          </Box>
+        </Flex>
+
+        {/* Contenu avec chargement des données */}
+        <Suspense fallback={<Loading />}>
+          <StocksContent />
+        </Suspense>
+      </Flex>
+    </Box>
+  );
+}

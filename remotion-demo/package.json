@@ -1,0 +1,24 @@
+{
+  "name": "orema-demo-video",
+  "version": "1.0.0",
+  "description": "Video demo for Oréma N+ POS System",
+  "scripts": {
+    "start": "remotion studio",
+    "build": "remotion render DemoVideo out/demo.mp4",
+    "build:gif": "remotion render DemoVideo out/demo.gif",
+    "upgrade": "remotion upgrade"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.414",
+    "@remotion/google-fonts": "^4.0.414",
+    "@remotion/transitions": "^4.0.414",
+    "playwright": "^1.58.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "remotion": "^4.0.414"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "typescript": "^5.0.0"
+  }
+}

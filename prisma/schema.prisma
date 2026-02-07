@@ -1,0 +1,757 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  MANAGER
+  CAISSIER
+  SERVEUR
+}
+
+enum TypeVente {
+  DIRECT
+  TABLE
+  LIVRAISON
+  EMPORTER
+}
+
+enum StatutVente {
+  EN_COURS
+  PAYEE
+  ANNULEE
+}
+
+enum StatutTable {
+  LIBRE
+  OCCUPEE
+  EN_PREPARATION
+  ADDITION
+  A_NETTOYER
+}
+
+enum FormeTable {
+  RONDE
+  CARREE
+  RECTANGULAIRE
+}
+
+enum TauxTva {
+  STANDARD
+  REDUIT
+  EXONERE
+}
+
+enum ModePaiement {
+  ESPECES
+  CARTE_BANCAIRE
+  AIRTEL_MONEY
+  MOOV_MONEY
+  CHEQUE
+  VIREMENT
+  COMPTE_CLIENT
+  MIXTE
+}
+
+enum TypeRemise {
+  POURCENTAGE
+  MONTANT_FIXE
+}
+
+enum StatutPreparation {
+  EN_ATTENTE
+  EN_PREPARATION
+  PRETE
+  SERVIE
+}
+
+enum TypeImprimante {
+  TICKET
+  CUISINE
+  BAR
+}
+
+enum TypeConnexion {
+  USB
+  RESEAU
+  SERIE
+  BLUETOOTH
+}
+
+enum TypeMouvement {
+  ENTREE
+  SORTIE
+  AJUSTEMENT
+  PERTE
+  INVENTAIRE
+}
+
+enum ActionAudit {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  CAISSE_OUVERTURE
+  CAISSE_CLOTURE
+  ANNULATION_VENTE
+  REMISE_APPLIQUEE
+}
+
+enum MethodeValuation {
+  FIFO
+  LIFO
+}
+
+enum AffichageTable {
+  NOM
+  NUMERO
+  CAPACITE
+  NOM_NUMERO
+  NUMERO_CAPACITE
+}
+
+// ============================================================================
+// MODELS
+// ============================================================================
+
+model Etablissement {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nom                  String
+  adresse              String?
+  telephone            String?
+  email                String?
+  nif                  String?
+  rccm                 String?
+  logo                 String?
+  devisePar            String   @default("FCFA") @map("devise_par")
+  tauxTvaStandard      Decimal  @default(18) @map("taux_tva_standard") @db.Decimal(5, 2)
+  tauxTvaReduit        Decimal  @default(10) @map("taux_tva_reduit") @db.Decimal(5, 2)
+  afficherTvaSurTicket Boolean  @default(true) @map("afficher_tva_sur_ticket")
+  messageTicket        String?  @map("message_ticket") @db.VarChar(500)
+  dernierNumeroTicket  Int      @default(0) @map("dernier_numero_ticket")
+  dateNumeroTicket     DateTime @default(dbgenerated("CURRENT_DATE")) @map("date_numero_ticket") @db.Date
+
+  // ============================================================================
+  // CAISSE & VENTES
+  // ============================================================================
+  modeVenteDefaut       TypeVente      @default(DIRECT) @map("mode_vente_defaut")
+  confirmationVente     Boolean        @default(false) @map("confirmation_vente")
+  montantMinimumVente   Int            @default(0) @map("montant_minimum_vente")
+  remiseMaxAutorisee    Decimal        @default(100) @map("remise_max_autorisee") @db.Decimal(5, 2)
+  impressionAutoTicket  Boolean        @default(true) @map("impression_auto_ticket")
+  modesPaiementActifs   ModePaiement[] @default([ESPECES, CARTE_BANCAIRE, AIRTEL_MONEY, MOOV_MONEY])
+
+  // ============================================================================
+  // GESTION DES STOCKS
+  // ============================================================================
+  seuilAlerteStockBas   Int              @default(10) @map("seuil_alerte_stock_bas")
+  seuilCritiqueStock    Int              @default(5) @map("seuil_critique_stock")
+  alerteStockEmail      Boolean          @default(false) @map("alerte_stock_email")
+  emailAlerteStock      String?          @map("email_alerte_stock")
+  methodeValuationStock MethodeValuation @default(FIFO) @map("methode_valuation_stock")
+
+  // ============================================================================
+  // PROGRAMME FIDELITE
+  // ============================================================================
+  fideliteActif         Boolean  @default(false) @map("fidelite_actif")
+  tauxPointsFidelite    Int      @default(1) @map("taux_points_fidelite")
+  valeurPointFidelite   Int      @default(100) @map("valeur_point_fidelite")
+  creditClientActif     Boolean  @default(false) @map("credit_client_actif")
+  limiteCreditDefaut    Int      @default(0) @map("limite_credit_defaut")
+  dureeValiditeSolde    Int      @default(365) @map("duree_validite_solde")
+
+  // ============================================================================
+  // SECURITE
+  // ============================================================================
+  longueurPinMinimum    Int           @default(4) @map("longueur_pin_minimum")
+  tentativesLoginMax    Int           @default(5) @map("tentatives_login_max")
+  dureeBlocage          Int           @default(15) @map("duree_blocage")
+  sessionTimeout        Int           @default(30) @map("session_timeout")
+  auditActif            Boolean       @default(true) @map("audit_actif")
+  actionsALogger        ActionAudit[] @default([LOGIN, LOGOUT, CAISSE_OUVERTURE, CAISSE_CLOTURE, ANNULATION_VENTE, REMISE_APPLIQUEE])
+
+  // ============================================================================
+  // PLAN DE SALLE
+  // ============================================================================
+  couleurTableLibre     String         @default("#22c55e") @map("couleur_table_libre")
+  couleurTableOccupee   String         @default("#eab308") @map("couleur_table_occupee")
+  couleurTablePrepa     String         @default("#3b82f6") @map("couleur_table_prepa")
+  couleurTableAddition  String         @default("#f97316") @map("couleur_table_addition")
+  couleurTableNettoyer  String         @default("#ef4444") @map("couleur_table_nettoyer")
+  affichageTable        AffichageTable @default(NUMERO) @map("affichage_table")
+  grilleActivee         Boolean        @default(true) @map("grille_activee")
+  tailleGrille          Int            @default(20) @map("taille_grille")
+
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  utilisateurs    Utilisateur[]
+  categories      Categorie[]
+  produits        Produit[]
+  imprimantes     Imprimante[]
+  zones           Zone[]
+  tables          Table[]
+  clients         Client[]
+  sessionsCaisse  SessionCaisse[]
+  ventes          Vente[]
+  auditLogs       AuditLog[]
+  rolePermissions RolePermission[]
+
+  @@index([nom], map: "idx_etablissements_nom")
+  @@map("etablissements")
+}
+
+model Utilisateur {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email           String   @unique
+  password        String?
+  nom             String
+  prenom          String
+  role            Role     @default(CAISSIER)
+  pinCode         String?  @map("pin_code")
+  actif           Boolean  @default(true)
+  etablissementId String   @map("etablissement_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  // Accès personnalisé aux pages (override les permissions du rôle)
+  // Si défini et non vide, seules ces routes sont accessibles pour les non-admins
+  // Format: ["/caisse", "/salle", "/clients"]
+  allowedRoutes   String[] @default([]) @map("allowed_routes")
+
+  // Relations
+  etablissement  Etablissement   @relation(fields: [etablissementId], references: [id], onDelete: Cascade)
+  sessions       Session[]
+  sessionsCaisse SessionCaisse[]
+  ventes         Vente[]
+  auditLogs      AuditLog[]
+
+  @@index([email], map: "idx_utilisateurs_email")
+  @@index([etablissementId], map: "idx_utilisateurs_etablissement")
+  @@index([actif], map: "idx_utilisateurs_actif")
+  @@map("utilisateurs")
+}
+
+model Session {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  token         String      @unique
+  utilisateurId String      @map("utilisateur_id") @db.Uuid
+  expiresAt     DateTime    @map("expires_at") @db.Timestamptz(6)
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  utilisateur Utilisateur @relation(fields: [utilisateurId], references: [id], onDelete: Cascade)
+
+  @@index([token], map: "idx_sessions_token")
+  @@index([utilisateurId], map: "idx_sessions_utilisateur")
+  @@index([expiresAt], map: "idx_sessions_expires")
+  @@map("sessions")
+}
+
+model Imprimante {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nom             String
+  type            TypeImprimante
+  typeConnexion   TypeConnexion  @map("type_connexion")
+  adresseIp       String?        @map("adresse_ip")
+  port            Int?
+  pathUsb         String?        @map("path_usb")
+  largeurPapier   Int            @default(80) @map("largeur_papier")
+  actif           Boolean        @default(true)
+  etablissementId String         @map("etablissement_id") @db.Uuid
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime       @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  etablissement Etablissement @relation(fields: [etablissementId], references: [id], onDelete: Cascade)
+  categories    Categorie[]
+
+  @@index([etablissementId], map: "idx_imprimantes_etablissement")
+  @@index([type], map: "idx_imprimantes_type")
+  @@map("imprimantes")
+}
+
+model Categorie {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nom             String
+  couleur         String   @default("#f97316")
+  icone           String?
+  ordre           Int      @default(0)
+  actif           Boolean  @default(true)
+  imprimanteId    String?  @map("imprimante_id") @db.Uuid
+  etablissementId String   @map("etablissement_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  etablissement Etablissement @relation(fields: [etablissementId], references: [id], onDelete: Cascade)
+  imprimante    Imprimante?   @relation(fields: [imprimanteId], references: [id])
+  produits      Produit[]
+
+  @@unique([etablissementId, nom])
+  @@index([etablissementId], map: "idx_categories_etablissement")
+  @@index([ordre], map: "idx_categories_ordre")
+  @@map("categories")
+}
+
+model Zone {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nom             String
+  description     String?
+  couleur         String?
+  ordre           Int      @default(0)
+  active          Boolean  @default(true)
+  fraisLivraison  Int      @default(0) @map("frais_livraison")
+  delaiEstime     Int?     @map("delai_estime")
+  etablissementId String   @map("etablissement_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  etablissement Etablissement @relation(fields: [etablissementId], references: [id], onDelete: Cascade)
+  tables        Table[]
+
+  @@unique([etablissementId, nom])
+  @@index([etablissementId], map: "idx_zones_etablissement")
+  @@map("zones")
+}
+
+model Table {
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  numero          String
+  capacite        Int         @default(4)
+  forme           FormeTable  @default(CARREE)
+  statut          StatutTable @default(LIBRE)
+  positionX       Float?      @map("position_x")
+  positionY       Float?      @map("position_y")
+  largeur         Float?
+  hauteur         Float?
+  zoneId          String?     @map("zone_id") @db.Uuid
+  active          Boolean     @default(true)
+  etablissementId String      @map("etablissement_id") @db.Uuid
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime    @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  etablissement Etablissement @relation(fields: [etablissementId], references: [id], onDelete: Cascade)
+  zone          Zone?         @relation(fields: [zoneId], references: [id])
+  ventes        Vente[]
+
+  @@unique([etablissementId, numero])
+  @@index([etablissementId], map: "idx_tables_etablissement")
+  @@index([zoneId], map: "idx_tables_zone")
+  @@index([statut], map: "idx_tables_statut")
+  @@map("tables")
+}
+
+model Produit {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nom                 String
+  description         String?
+  image               String?
+  codeBarre           String?  @map("code_barre")
+  prixVente           Decimal  @map("prix_vente") @db.Decimal(10, 0)
+  tauxTva             TauxTva  @default(STANDARD) @map("taux_tva")
+  prixAchat           Decimal? @map("prix_achat") @db.Decimal(10, 0)
+  gererStock          Boolean  @default(false) @map("gerer_stock")
+  stockActuel         Int?     @default(0) @map("stock_actuel")
+  stockMin            Int?     @map("stock_min")
+  stockMax            Int?     @map("stock_max")
+  unite               String?
+  disponibleDirect    Boolean  @default(true) @map("disponible_direct")
+  disponibleTable     Boolean  @default(true) @map("disponible_table")
+  disponibleLivraison Boolean  @default(true) @map("disponible_livraison")
+  disponibleEmporter  Boolean  @default(true) @map("disponible_emporter")
+  actif               Boolean  @default(true)
+  categorieId         String   @map("categorie_id") @db.Uuid
+  etablissementId     String   @map("etablissement_id") @db.Uuid
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  etablissement       Etablissement        @relation(fields: [etablissementId], references: [id], onDelete: Cascade)
+  categorie           Categorie            @relation(fields: [categorieId], references: [id])
+  supplements         SupplementProduit[]
+  lignesVente         LigneVente[]
+  mouvementsStock     MouvementStock[]
+
+  @@unique([etablissementId, codeBarre])
+  @@index([etablissementId], map: "idx_produits_etablissement")
+  @@index([categorieId], map: "idx_produits_categorie")
+  @@index([codeBarre], map: "idx_produits_code_barre")
+  @@index([actif], map: "idx_produits_actif")
+  @@map("produits")
+}
+
+model SupplementProduit {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nom       String
+  prix      Decimal  @db.Decimal(10, 0)
+  produitId String   @map("produit_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  produit                Produit                @relation(fields: [produitId], references: [id], onDelete: Cascade)
+  lignesVenteSupplements LigneVenteSupplement[]
+
+  @@index([produitId], map: "idx_supplements_produit")
+  @@map("supplements_produits")
+}
+
+model Client {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nom             String
+  prenom          String?
+  telephone       String?
+  email           String?
+  adresse         String?
+  pointsFidelite  Int      @default(0) @map("points_fidelite")
+  soldePrepaye    Decimal  @default(0) @map("solde_prepaye") @db.Decimal(10, 0)
+  creditAutorise  Boolean  @default(false) @map("credit_autorise")
+  limitCredit     Decimal? @map("limit_credit") @db.Decimal(10, 0)
+  soldeCredit     Decimal  @default(0) @map("solde_credit") @db.Decimal(10, 0)
+  actif           Boolean  @default(true)
+  etablissementId String   @map("etablissement_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  etablissement Etablissement @relation(fields: [etablissementId], references: [id], onDelete: Cascade)
+  ventes        Vente[]
+
+  @@index([etablissementId], map: "idx_clients_etablissement")
+  @@index([telephone], map: "idx_clients_telephone")
+  @@index([email], map: "idx_clients_email")
+  @@index([actif], map: "idx_clients_actif")
+  @@map("clients")
+}
+
+model SessionCaisse {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fondCaisse        Decimal   @map("fond_caisse") @db.Decimal(10, 0)
+  totalVentes       Decimal   @default(0) @map("total_ventes") @db.Decimal(10, 0)
+  totalEspeces      Decimal   @default(0) @map("total_especes") @db.Decimal(10, 0)
+  totalCartes       Decimal   @default(0) @map("total_cartes") @db.Decimal(10, 0)
+  totalMobileMoney  Decimal   @default(0) @map("total_mobile_money") @db.Decimal(10, 0)
+  totalAutres       Decimal   @default(0) @map("total_autres") @db.Decimal(10, 0)
+  nombreVentes      Int       @default(0) @map("nombre_ventes")
+  nombreAnnulations Int       @default(0) @map("nombre_annulations")
+  especesComptees   Decimal?  @map("especes_comptees") @db.Decimal(10, 0)
+  ecart             Decimal?  @db.Decimal(10, 0)
+  notesCloture      String?   @map("notes_cloture")
+  dateOuverture     DateTime  @default(now()) @map("date_ouverture") @db.Timestamptz(6)
+  dateCloture       DateTime? @map("date_cloture") @db.Timestamptz(6)
+  utilisateurId     String    @map("utilisateur_id") @db.Uuid
+  etablissementId   String    @map("etablissement_id") @db.Uuid
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  utilisateur   Utilisateur   @relation(fields: [utilisateurId], references: [id])
+  etablissement Etablissement @relation(fields: [etablissementId], references: [id], onDelete: Cascade)
+  ventes        Vente[]
+
+  @@index([etablissementId], map: "idx_sessions_caisse_etablissement")
+  @@index([utilisateurId], map: "idx_sessions_caisse_utilisateur")
+  @@index([dateOuverture], map: "idx_sessions_caisse_date_ouverture")
+  @@index([dateCloture], map: "idx_sessions_caisse_date_cloture")
+  @@map("sessions_caisse")
+}
+
+model Vente {
+  id               String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  numeroTicket     String       @unique @map("numero_ticket")
+  type             TypeVente    @default(DIRECT)
+  statut           StatutVente  @default(EN_COURS)
+  sousTotal        Decimal      @map("sous_total") @db.Decimal(10, 0)
+  totalTva         Decimal      @map("total_tva") @db.Decimal(10, 0)
+  totalRemise      Decimal      @default(0) @map("total_remise") @db.Decimal(10, 0)
+  totalFinal       Decimal      @map("total_final") @db.Decimal(10, 0)
+  typeRemise       TypeRemise?  @map("type_remise")
+  valeurRemise     Decimal?     @map("valeur_remise") @db.Decimal(10, 0)
+  tableId          String?      @map("table_id") @db.Uuid
+  clientId         String?      @map("client_id") @db.Uuid
+  utilisateurId    String       @map("utilisateur_id") @db.Uuid
+  sessionCaisseId  String?      @map("session_caisse_id") @db.Uuid
+  etablissementId  String       @map("etablissement_id") @db.Uuid
+  adresseLivraison String?      @map("adresse_livraison")
+  fraisLivraison   Decimal?     @map("frais_livraison") @db.Decimal(10, 0)
+  notes            String?
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime     @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  table         Table?         @relation(fields: [tableId], references: [id])
+  client        Client?        @relation(fields: [clientId], references: [id])
+  utilisateur   Utilisateur    @relation(fields: [utilisateurId], references: [id])
+  sessionCaisse SessionCaisse? @relation(fields: [sessionCaisseId], references: [id])
+  etablissement Etablissement  @relation(fields: [etablissementId], references: [id], onDelete: Cascade)
+  lignes        LigneVente[]
+  paiements     Paiement[]
+
+  @@index([etablissementId], map: "idx_ventes_etablissement")
+  @@index([utilisateurId], map: "idx_ventes_utilisateur")
+  @@index([tableId], map: "idx_ventes_table")
+  @@index([clientId], map: "idx_ventes_client")
+  @@index([sessionCaisseId], map: "idx_ventes_session_caisse")
+  @@index([numeroTicket], map: "idx_ventes_numero_ticket")
+  @@index([type], map: "idx_ventes_type")
+  @@index([statut], map: "idx_ventes_statut")
+  @@index([createdAt], map: "idx_ventes_created_at")
+  @@map("ventes")
+}
+
+model LigneVente {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quantite          Int               @default(1)
+  prixUnitaire      Decimal           @map("prix_unitaire") @db.Decimal(10, 0)
+  sousTotal         Decimal           @map("sous_total") @db.Decimal(10, 0)
+  tauxTva           Decimal           @map("taux_tva") @db.Decimal(5, 2)
+  montantTva        Decimal           @map("montant_tva") @db.Decimal(10, 0)
+  total             Decimal           @db.Decimal(10, 0)
+  statutPreparation StatutPreparation @default(EN_ATTENTE) @map("statut_preparation")
+  notes             String?
+  venteId           String            @map("vente_id") @db.Uuid
+  produitId         String            @map("produit_id") @db.Uuid
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime          @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  vente       Vente                  @relation(fields: [venteId], references: [id], onDelete: Cascade)
+  produit     Produit                @relation(fields: [produitId], references: [id])
+  supplements LigneVenteSupplement[]
+
+  @@index([venteId], map: "idx_lignes_vente_vente")
+  @@index([produitId], map: "idx_lignes_vente_produit")
+  @@index([statutPreparation], map: "idx_lignes_vente_statut")
+  @@map("lignes_vente")
+}
+
+model LigneVenteSupplement {
+  id                  String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nom                 String
+  prix                Decimal            @db.Decimal(10, 0)
+  ligneVenteId        String             @map("ligne_vente_id") @db.Uuid
+  supplementProduitId String?            @map("supplement_produit_id") @db.Uuid
+  createdAt           DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  ligneVente        LigneVente         @relation(fields: [ligneVenteId], references: [id], onDelete: Cascade)
+  supplementProduit SupplementProduit? @relation(fields: [supplementProduitId], references: [id])
+
+  @@index([ligneVenteId], map: "idx_lignes_vente_supplements_ligne")
+  @@index([supplementProduitId], map: "idx_lignes_vente_supplements_supplement")
+  @@map("lignes_vente_supplements")
+}
+
+model Paiement {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  montant       Decimal      @db.Decimal(10, 0)
+  modePaiement  ModePaiement @map("mode_paiement")
+  reference     String?
+  montantRecu   Decimal?     @map("montant_recu") @db.Decimal(10, 0)
+  monnaieRendue Decimal?     @map("monnaie_rendue") @db.Decimal(10, 0)
+  venteId       String       @map("vente_id") @db.Uuid
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  vente Vente @relation(fields: [venteId], references: [id], onDelete: Cascade)
+
+  @@index([venteId], map: "idx_paiements_vente")
+  @@index([modePaiement], map: "idx_paiements_mode")
+  @@map("paiements")
+}
+
+model MouvementStock {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type          TypeMouvement
+  quantite      Int
+  quantiteAvant Int           @map("quantite_avant")
+  quantiteApres Int           @map("quantite_apres")
+  prixUnitaire  Decimal?      @map("prix_unitaire") @db.Decimal(10, 0)
+  motif         String?
+  reference     String?
+  produitId     String        @map("produit_id") @db.Uuid
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  produit Produit @relation(fields: [produitId], references: [id], onDelete: Cascade)
+
+  @@index([produitId], map: "idx_mouvements_stock_produit")
+  @@index([type], map: "idx_mouvements_stock_type")
+  @@index([createdAt], map: "idx_mouvements_stock_created_at")
+  @@map("mouvements_stock")
+}
+
+model AuditLog {
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  action          ActionAudit
+  entite          String
+  entiteId        String?     @map("entite_id")
+  description     String?
+  ancienneValeur  String?     @map("ancienne_valeur")
+  nouvelleValeur  String?     @map("nouvelle_valeur")
+  adresseIp       String?     @map("adresse_ip")
+  utilisateurId   String?     @map("utilisateur_id") @db.Uuid
+  etablissementId String      @map("etablissement_id") @db.Uuid
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  utilisateur   Utilisateur?  @relation(fields: [utilisateurId], references: [id])
+  etablissement Etablissement @relation(fields: [etablissementId], references: [id], onDelete: Cascade)
+
+  @@index([etablissementId], map: "idx_audit_logs_etablissement")
+  @@index([utilisateurId], map: "idx_audit_logs_utilisateur")
+  @@index([action], map: "idx_audit_logs_action")
+  @@index([entite], map: "idx_audit_logs_entite")
+  @@index([createdAt], map: "idx_audit_logs_created_at")
+  @@map("audit_logs")
+}
+
+// ============================================================================
+// PERMISSIONS CONFIGURABLES
+// ============================================================================
+
+model RolePermission {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  role            Role
+  permissions     Json     @default("[]") // Array de Permission strings
+  etablissementId String   @map("etablissement_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  etablissement Etablissement @relation(fields: [etablissementId], references: [id], onDelete: Cascade)
+
+  @@unique([role, etablissementId])
+  @@index([etablissementId], map: "idx_role_permissions_etablissement")
+  @@index([role], map: "idx_role_permissions_role")
+  @@map("role_permissions")
+}
+
+// ============================================================================
+// SYNCHRONISATION HORS-LIGNE
+// ============================================================================
+
+/// Clés d'idempotence pour éviter les doublons lors de la synchronisation
+model SyncKey {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  idempotencyKey  String   @unique @map("idempotency_key")
+  venteId         String   @map("vente_id") @db.Uuid
+  numeroTicket    String   @map("numero_ticket")
+  etablissementId String   @map("etablissement_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt       DateTime @map("expires_at") @db.Timestamptz(6)
+
+  @@index([idempotencyKey], map: "idx_sync_keys_idempotency")
+  @@index([etablissementId], map: "idx_sync_keys_etablissement")
+  @@index([expiresAt], map: "idx_sync_keys_expires")
+  @@map("sync_keys")
+}
+
+// ============================================================================
+// RAPPORTS ET LOGS
+// ============================================================================
+
+enum StatutPaiementMobile {
+  EN_ATTENTE
+  CONFIRME
+  ECHOUE
+  EXPIRE
+}
+
+enum TypeSMS {
+  COMMANDE_PRETE
+  LIVRAISON
+  RESERVATION
+  PROMO
+  CUSTOM
+}
+
+/// Rapport Z journalier (clôture de caisse)
+model RapportZ {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  date              DateTime @db.Date
+  nombreVentes      Int      @default(0) @map("nombre_ventes")
+  nombreArticles    Int      @default(0) @map("nombre_articles")
+  totalHT           Decimal  @default(0) @map("total_ht") @db.Decimal(10, 0)
+  totalTVA          Decimal  @default(0) @map("total_tva") @db.Decimal(10, 0)
+  totalTTC          Decimal  @default(0) @map("total_ttc") @db.Decimal(10, 0)
+  totalEspeces      Decimal  @default(0) @map("total_especes") @db.Decimal(10, 0)
+  totalCartes       Decimal  @default(0) @map("total_cartes") @db.Decimal(10, 0)
+  totalAirtelMoney  Decimal  @default(0) @map("total_airtel_money") @db.Decimal(10, 0)
+  totalMoovMoney    Decimal  @default(0) @map("total_moov_money") @db.Decimal(10, 0)
+  totalCheques      Decimal  @default(0) @map("total_cheques") @db.Decimal(10, 0)
+  totalVirements    Decimal  @default(0) @map("total_virements") @db.Decimal(10, 0)
+  totalCompteClient Decimal  @default(0) @map("total_compte_client") @db.Decimal(10, 0)
+  panierMoyen       Decimal  @default(0) @map("panier_moyen") @db.Decimal(10, 0)
+  premierTicket     String?  @map("premier_ticket")
+  dernierTicket     String?  @map("dernier_ticket")
+  data              Json?    // Données détaillées (ventes par heure, par type, etc.)
+  genereAuto        Boolean  @default(false) @map("genere_auto")
+  etablissementId   String   @map("etablissement_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([etablissementId, date])
+  @@index([etablissementId], map: "idx_rapports_z_etablissement")
+  @@index([date], map: "idx_rapports_z_date")
+  @@map("rapports_z")
+}
+
+/// Logs d'envoi de SMS
+model LogSMS {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  telephone       String
+  message         String
+  type            TypeSMS
+  provider        String   // orange, twilio, etc.
+  success         Boolean  @default(false)
+  messageId       String?  @map("message_id")
+  error           String?
+  metadata        Json?
+  etablissementId String   @map("etablissement_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([etablissementId], map: "idx_logs_sms_etablissement")
+  @@index([telephone], map: "idx_logs_sms_telephone")
+  @@index([createdAt], map: "idx_logs_sms_created_at")
+  @@map("logs_sms")
+}
+
+/// Paiements Mobile Money en attente de confirmation
+model PaiementMobile {
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  referenceInterne   String               @unique @map("reference_interne")
+  referenceExterne   String?              @map("reference_externe")
+  montant            Decimal              @db.Decimal(10, 0)
+  telephone          String
+  provider           String               // AIRTEL_MONEY, MOOV_MONEY
+  statut             StatutPaiementMobile @default(EN_ATTENTE)
+  confirmeAt         DateTime?            @map("confirme_at") @db.Timestamptz(6)
+  expireAt           DateTime             @map("expire_at") @db.Timestamptz(6)
+  metadonnees        Json?
+  paiementId         String?              @map("paiement_id") @db.Uuid
+  venteId            String               @map("vente_id") @db.Uuid
+  etablissementId    String               @map("etablissement_id") @db.Uuid
+  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime             @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([referenceInterne], map: "idx_paiements_mobile_reference")
+  @@index([statut], map: "idx_paiements_mobile_statut")
+  @@index([etablissementId], map: "idx_paiements_mobile_etablissement")
+  @@index([expireAt], map: "idx_paiements_mobile_expire")
+  @@map("paiements_mobile")
+}

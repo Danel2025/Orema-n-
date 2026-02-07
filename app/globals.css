@@ -1,0 +1,638 @@
+@import "@radix-ui/themes/styles.css";
+@import "tailwindcss";
+
+/* ============================================================================
+   Variables de couleurs - Oréma N+ POS
+   Basé sur Radix UI Colors avec accent Orange et gris Slate
+   ============================================================================ */
+
+:root {
+  /* Couleurs de base - Mode clair */
+  --background: #ffffff;
+  --foreground: #0a0a0a;
+
+  /* Accent principal - utilise le système Radix UI */
+  --accent: var(--accent-9);
+  --accent-light: var(--accent-8);
+  --accent-dark: var(--accent-10);
+
+  /* Radix Slate (gris) */
+  --gray-50: #f8fafc;
+  --gray-100: #f1f5f9;
+  --gray-200: #e2e8f0;
+  --gray-300: #cbd5e1;
+  --gray-400: #94a3b8;
+  --gray-500: #64748b;
+  --gray-600: #475569;
+  --gray-700: #334155;
+  --gray-800: #1e293b;
+  --gray-900: #0f172a;
+
+  /* États */
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --info: #3b82f6;
+
+  /* Borders */
+  --border-color: var(--gray-200);
+  --border-radius: 8px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+}
+
+/* Mode sombre - Vrai noir, pas bleu ! */
+.dark {
+  --background: #0a0a0a;
+  --foreground: #fafafa;
+  --border-color: #262626;
+
+  /* Gris neutres pour dark mode (pas slate bleuté) */
+  --gray-50: #171717;
+  --gray-100: #262626;
+  --gray-200: #404040;
+  --gray-300: #525252;
+  --gray-400: #737373;
+  --gray-500: #a3a3a3;
+  --gray-600: #d4d4d4;
+  --gray-700: #e5e5e5;
+  --gray-800: #f5f5f5;
+  --gray-900: #fafafa;
+}
+
+/* Support préférences système */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --background: #0a0a0a;
+    --foreground: #fafafa;
+    --border-color: #262626;
+  }
+}
+
+/* Bloc @theme inline retiré - Configuration déplacée dans tailwind.config.ts */
+
+/* ============================================================================
+   Reset et styles de base
+   ============================================================================ */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  height: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  height: 100%;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-gabarito), var(--font-sans);
+  font-size: 16px;
+  line-height: 1.6;
+  transition:
+    background-color 200ms ease,
+    color 200ms ease;
+  /* Par défaut, on cache l'overflow pour le dashboard avec scroll interne */
+  overflow: hidden;
+}
+
+/* Permettre le scroll sur les pages publiques/landing */
+body:has(.landing-page),
+body:has(.public-page),
+body:has(.scroll-page) {
+  overflow: auto;
+}
+
+/* Override Radix UI font with Gabarito + height chain fix */
+.radix-themes {
+  --default-font-family:
+    var(--font-gabarito), -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial,
+    sans-serif;
+  --heading-font-family:
+    var(--font-gabarito), -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial,
+    sans-serif;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+/* ============================================================================
+   Sonner Toast - Override de la police
+   ============================================================================ */
+
+[data-sonner-toast] {
+  font-family:
+    var(--font-gabarito),
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Helvetica,
+    Arial,
+    sans-serif !important;
+}
+
+[data-sonner-toast] [data-title] {
+  font-family:
+    var(--font-gabarito),
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Helvetica,
+    Arial,
+    sans-serif !important;
+  font-weight: 600;
+}
+
+[data-sonner-toast] [data-description] {
+  font-family:
+    var(--font-gabarito),
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Helvetica,
+    Arial,
+    sans-serif !important;
+}
+
+[data-sonner-toast] [data-button] {
+  font-family:
+    var(--font-gabarito),
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Helvetica,
+    Arial,
+    sans-serif !important;
+}
+
+/* ============================================================================
+   Classes utilitaires personnalisées
+   ============================================================================ */
+
+/* Boutons tactiles - Minimum 44x44px pour touch */
+.touch-target {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* Prix FCFA et valeurs numériques */
+.price-fcfa,
+.font-mono {
+  font-family: var(--font-google-sans-code), ui-monospace, monospace;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* Grille produits POS */
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+@media (min-width: 768px) {
+  .product-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  }
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 200ms ease-in-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 300ms ease-out;
+}
+
+/* Animation pulse lente pour les éléments décoratifs */
+@keyframes pulseSlow {
+  0%, 100% {
+    opacity: 0.15;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.25;
+    transform: scale(1.05);
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulseSlow 4s ease-in-out infinite;
+}
+
+/* Landing page navbar glassmorphism */
+.navbar-scrolled {
+  background: rgba(255, 255, 255, 0.85) !important;
+}
+
+.dark .navbar-scrolled,
+[data-theme="dark"] .navbar-scrolled {
+  background: rgba(10, 10, 10, 0.85) !important;
+}
+
+/* ============================================================================
+   Scrollbar personnalisée
+   ============================================================================ */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--gray-100);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--gray-400);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gray-500);
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-track {
+  background: var(--gray-800);
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: var(--gray-600);
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--gray-500);
+}
+
+/* Cacher la scrollbar */
+.hide-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari, Opera */
+}
+
+/* ============================================================================
+   États de chargement
+   ============================================================================ */
+
+.skeleton {
+  background: linear-gradient(90deg, var(--gray-200) 25%, var(--gray-100) 50%, var(--gray-200) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius-md);
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+[data-theme="dark"] .skeleton {
+  background: linear-gradient(90deg, var(--gray-800) 25%, var(--gray-700) 50%, var(--gray-800) 75%);
+  background-size: 200% 100%;
+}
+
+/* ============================================================================
+   Indicateurs de statut des tables (Plan de salle)
+   ============================================================================ */
+
+/* Statut LIBRE - Vert */
+.status-indicator-libre {
+  background-color: #dcfce7;
+  border: 2px solid #22c55e;
+}
+
+.dark .status-indicator-libre {
+  background-color: #052e16;
+  border-color: #22c55e;
+}
+
+/* Statut OCCUPEE - Jaune */
+.status-indicator-occupee {
+  background-color: #fef9c3;
+  border: 2px solid #eab308;
+}
+
+.dark .status-indicator-occupee {
+  background-color: #422006;
+  border-color: #eab308;
+}
+
+/* Statut EN_PREPARATION - Bleu */
+.status-indicator-en-preparation {
+  background-color: #dbeafe;
+  border: 2px solid #3b82f6;
+}
+
+.dark .status-indicator-en-preparation {
+  background-color: #172554;
+  border-color: #3b82f6;
+}
+
+/* Statut ADDITION - Orange */
+.status-indicator-addition {
+  background-color: #ffedd5;
+  border: 2px solid #f97316;
+}
+
+.dark .status-indicator-addition {
+  background-color: #431407;
+  border-color: #f97316;
+}
+
+/* Statut A_NETTOYER - Rouge */
+.status-indicator-a-nettoyer {
+  background-color: #fee2e2;
+  border: 2px solid #ef4444;
+}
+
+.dark .status-indicator-a-nettoyer {
+  background-color: #450a0a;
+  border-color: #ef4444;
+}
+
+/* ============================================================================
+   Print styles (pour tickets de caisse)
+   ============================================================================ */
+
+/* ============================================================================
+   Layout Responsive - Sidebar & Dashboard
+   ============================================================================ */
+
+:root {
+  --sidebar-width: 256px;
+  --sidebar-width-collapsed: 72px;
+  --header-height: 64px;
+}
+
+/* Sidebar */
+.sidebar {
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--sidebar-width);
+  background-color: var(--color-background);
+  border-right: 1px solid var(--gray-a6);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  transition: transform 0.2s ease, width 0.2s ease;
+}
+
+.sidebar.collapsed {
+  width: var(--sidebar-width-collapsed);
+}
+
+/* Mobile: sidebar cachée par défaut, s'affiche en overlay */
+@media (max-width: 1023px) {
+  .sidebar {
+    transform: translateX(-100%);
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
+  .sidebar.collapsed {
+    width: var(--sidebar-width);
+  }
+}
+
+/* Overlay mobile */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 40;
+}
+
+@media (max-width: 1023px) {
+  .sidebar-overlay.visible {
+    display: block;
+  }
+}
+
+/* Main content */
+.main-content {
+  margin-left: var(--sidebar-width);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--gray-2);
+  transition: margin-left 0.2s ease;
+}
+
+.main-content.sidebar-collapsed {
+  margin-left: var(--sidebar-width-collapsed);
+}
+
+@media (max-width: 1023px) {
+  .main-content,
+  .main-content.sidebar-collapsed {
+    margin-left: 0;
+  }
+}
+
+/* Header */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  height: var(--header-height);
+  background-color: var(--color-background);
+  border-bottom: 1px solid var(--gray-a6);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 32px;
+  gap: 12px;
+}
+
+@media (max-width: 1023px) {
+  .header {
+    padding: 0 16px;
+  }
+}
+
+/* Menu button - mobile only */
+.menu-button {
+  display: none;
+  flex-shrink: 0;
+}
+
+@media (max-width: 1023px) {
+  .menu-button {
+    display: flex;
+  }
+}
+
+/* Toggle button - desktop only */
+.toggle-button {
+  display: flex;
+}
+
+@media (max-width: 1023px) {
+  .toggle-button {
+    display: none;
+  }
+}
+
+/* Close button - mobile only */
+.close-button {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  .close-button {
+    display: flex;
+  }
+}
+
+/* Search bar responsive */
+.search-bar {
+  flex: 1;
+  max-width: 400px;
+}
+
+@media (max-width: 1023px) {
+  .search-bar {
+    max-width: 100%;
+  }
+}
+
+/* Offline status - desktop only */
+.offline-status-desktop {
+  display: flex;
+}
+
+@media (max-width: 1023px) {
+  .offline-status-desktop {
+    display: none;
+  }
+}
+
+/* Main padding responsive */
+.main-padding {
+  padding: 24px 32px;
+}
+
+@media (max-width: 1023px) {
+  .main-padding {
+    padding: 16px;
+  }
+}
+
+/* Sidebar nav item text - hidden when collapsed on desktop */
+.nav-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar.collapsed .nav-text {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  .sidebar .nav-text {
+    display: block;
+  }
+}
+
+/* Sidebar logo text */
+.sidebar.collapsed .logo-text {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  .sidebar .logo-text {
+    display: block;
+  }
+}
+
+/* Footer version - compact on collapsed */
+.footer-full {
+  display: block;
+}
+
+.footer-compact {
+  display: none;
+}
+
+.sidebar.collapsed .footer-full {
+  display: none;
+}
+
+.sidebar.collapsed .footer-compact {
+  display: block;
+}
+
+@media (max-width: 1023px) {
+  .sidebar .footer-full {
+    display: block;
+  }
+
+  .sidebar .footer-compact {
+    display: none;
+  }
+}
+
+@media print {
+  @page {
+    margin: 0;
+    size: 80mm auto;
+  }
+
+  body {
+    background: white;
+    color: black;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}

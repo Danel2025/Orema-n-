@@ -1,0 +1,59 @@
+/**
+ * Styles pour l'accordéon des produits
+ */
+
+/* Animation du chevron */
+.accordion-chevron {
+  transition: transform 200ms ease;
+}
+
+[data-state="open"] > .accordion-chevron {
+  transform: rotate(180deg);
+}
+
+/* Animation du contenu */
+.accordion-content {
+  overflow: hidden;
+}
+
+.accordion-content[data-state="open"] {
+  animation: slideDown 200ms ease-out;
+}
+
+.accordion-content[data-state="closed"] {
+  animation: slideUp 200ms ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    height: 0;
+    opacity: 0;
+  }
+  to {
+    height: var(--radix-accordion-content-height);
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    height: var(--radix-accordion-content-height);
+    opacity: 1;
+  }
+  to {
+    height: 0;
+    opacity: 0;
+  }
+}
+
+/* Hover sur le trigger */
+[data-radix-accordion-trigger]:hover {
+  background-color: var(--gray-a2);
+}
+
+/* Focus visible */
+[data-radix-accordion-trigger]:focus-visible {
+  outline: 2px solid var(--accent-8);
+  outline-offset: -2px;
+  border-radius: 12px;
+}
