@@ -154,65 +154,57 @@ export async function deleteEtablissement(
     // Paiements mobile
     const { count: paiementsMobile } = await supabase
       .from('paiements_mobile')
-      .delete()
+      .delete({ count: 'exact' })
       .eq('etablissement_id', etablissementId)
-      .select('id', { count: 'exact', head: true })
     deletedCounts['paiements_mobile'] = paiementsMobile || 0
 
     // Logs SMS
     const { count: logsSms } = await supabase
       .from('logs_sms')
-      .delete()
+      .delete({ count: 'exact' })
       .eq('etablissement_id', etablissementId)
-      .select('id', { count: 'exact', head: true })
     deletedCounts['logs_sms'] = logsSms || 0
 
     // Rapports Z
     const { count: rapportsZ } = await supabase
       .from('rapports_z')
-      .delete()
+      .delete({ count: 'exact' })
       .eq('etablissement_id', etablissementId)
-      .select('id', { count: 'exact', head: true })
     deletedCounts['rapports_z'] = rapportsZ || 0
 
     // Sync keys
     const { count: syncKeys } = await supabase
       .from('sync_keys')
-      .delete()
+      .delete({ count: 'exact' })
       .eq('etablissement_id', etablissementId)
-      .select('id', { count: 'exact', head: true })
     deletedCounts['sync_keys'] = syncKeys || 0
 
     // Audit logs
     const { count: auditLogs } = await supabase
       .from('audit_logs')
-      .delete()
+      .delete({ count: 'exact' })
       .eq('etablissement_id', etablissementId)
-      .select('id', { count: 'exact', head: true })
     deletedCounts['audit_logs'] = auditLogs || 0
 
     // Ventes (supprime aussi lignes_vente, paiements, lignes_vente_supplements via CASCADE)
     const { count: ventes } = await supabase
       .from('ventes')
-      .delete()
+      .delete({ count: 'exact' })
       .eq('etablissement_id', etablissementId)
-      .select('id', { count: 'exact', head: true })
     deletedCounts['ventes'] = ventes || 0
 
     // Sessions caisse
     const { count: sessionsCaisse } = await supabase
       .from('sessions_caisse')
-      .delete()
+      .delete({ count: 'exact' })
       .eq('etablissement_id', etablissementId)
-      .select('id', { count: 'exact', head: true })
     deletedCounts['sessions_caisse'] = sessionsCaisse || 0
 
     // Clients
     const { count: clients } = await supabase
       .from('clients')
-      .delete()
+      .delete({ count: 'exact' })
       .eq('etablissement_id', etablissementId)
-      .select('id', { count: 'exact', head: true })
     deletedCounts['clients'] = clients || 0
 
     // Mouvements stock (via produits)
@@ -221,49 +213,43 @@ export async function deleteEtablissement(
     // Produits (supprime aussi supplements_produits, mouvements_stock via CASCADE)
     const { count: produits } = await supabase
       .from('produits')
-      .delete()
+      .delete({ count: 'exact' })
       .eq('etablissement_id', etablissementId)
-      .select('id', { count: 'exact', head: true })
     deletedCounts['produits'] = produits || 0
 
     // Catégories
     const { count: categories } = await supabase
       .from('categories')
-      .delete()
+      .delete({ count: 'exact' })
       .eq('etablissement_id', etablissementId)
-      .select('id', { count: 'exact', head: true })
     deletedCounts['categories'] = categories || 0
 
     // Tables
     const { count: tables } = await supabase
       .from('tables')
-      .delete()
+      .delete({ count: 'exact' })
       .eq('etablissement_id', etablissementId)
-      .select('id', { count: 'exact', head: true })
     deletedCounts['tables'] = tables || 0
 
     // Zones
     const { count: zones } = await supabase
       .from('zones')
-      .delete()
+      .delete({ count: 'exact' })
       .eq('etablissement_id', etablissementId)
-      .select('id', { count: 'exact', head: true })
     deletedCounts['zones'] = zones || 0
 
     // Imprimantes
     const { count: imprimantes } = await supabase
       .from('imprimantes')
-      .delete()
+      .delete({ count: 'exact' })
       .eq('etablissement_id', etablissementId)
-      .select('id', { count: 'exact', head: true })
     deletedCounts['imprimantes'] = imprimantes || 0
 
     // Role permissions
     const { count: rolePermissions } = await supabase
       .from('role_permissions')
-      .delete()
+      .delete({ count: 'exact' })
       .eq('etablissement_id', etablissementId)
-      .select('id', { count: 'exact', head: true })
     deletedCounts['role_permissions'] = rolePermissions || 0
 
     // Sessions utilisateurs
@@ -272,18 +258,16 @@ export async function deleteEtablissement(
     if (userIds.length > 0) {
       const { count: sessions } = await supabase
         .from('sessions')
-        .delete()
+        .delete({ count: 'exact' })
         .in('utilisateur_id', userIds)
-        .select('id', { count: 'exact', head: true })
       deletedCounts['sessions'] = sessions || 0
     }
 
     // Utilisateurs
     const { count: utilisateursCount } = await supabase
       .from('utilisateurs')
-      .delete()
+      .delete({ count: 'exact' })
       .eq('etablissement_id', etablissementId)
-      .select('id', { count: 'exact', head: true })
     deletedCounts['utilisateurs'] = utilisateursCount || 0
 
     // 7. Enfin, supprimer l'établissement lui-même
@@ -303,15 +287,17 @@ export async function deleteEtablissement(
     deletedCounts['etablissement'] = 1
 
     // 8. Log dans l'audit de l'établissement du SUPER_ADMIN
-    await supabase.from('audit_logs').insert({
-      action: 'DELETE',
-      entite: 'Etablissement',
-      entite_id: etablissementId,
-      description: `Suppression complète de l'établissement "${etablissement.nom}" et de toutes ses données`,
-      utilisateur_id: session.userId,
-      etablissement_id: session.etablissementId,
-      nouvelle_valeur: JSON.stringify(deletedCounts),
-    })
+    if (session.etablissementId) {
+      await supabase.from('audit_logs').insert({
+        action: 'DELETE',
+        entite: 'Etablissement',
+        entite_id: etablissementId,
+        description: `Suppression complète de l'établissement "${etablissement.nom}" et de toutes ses données`,
+        utilisateur_id: session.userId,
+        etablissement_id: session.etablissementId,
+        nouvelle_valeur: JSON.stringify(deletedCounts),
+      })
+    }
 
     revalidatePath('/admin/etablissements')
 

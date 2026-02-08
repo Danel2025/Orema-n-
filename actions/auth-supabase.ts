@@ -15,6 +15,8 @@ import {
   type LoginInput,
   type PinLoginInput,
 } from '@/schemas/auth'
+import { checkLockout, recordFailedAttempt, resetAttempts } from '@/lib/auth/login-lockout'
+import { z } from 'zod'
 
 type ActionResult<T = void> = {
   success: boolean
@@ -28,9 +30,16 @@ type ActionResult<T = void> = {
 export async function loginWithSupabase(input: LoginInput): Promise<ActionResult> {
   try {
     const validated = loginSchema.parse(input)
+
+    // Lockout check
+    const lockout = checkLockout(validated.email)
+    if (lockout.locked) {
+      return { success: false, error: 'Compte temporairement verrouille suite a trop de tentatives. Veuillez reessayer dans quelques minutes.' }
+    }
+
     const supabase = createServiceClient()
 
-    // Vérifier que l'utilisateur existe dans notre table
+    // Verifier que l'utilisateur existe dans notre table
     const { data: utilisateur } = await supabase
       .from('utilisateurs')
       .select('id, nom, prenom, actif, etablissement_id')
@@ -38,6 +47,7 @@ export async function loginWithSupabase(input: LoginInput): Promise<ActionResult
       .single()
 
     if (!utilisateur || !utilisateur.actif) {
+      recordFailedAttempt(validated.email)
       return { success: false, error: 'Email ou mot de passe incorrect' }
     }
 
@@ -49,9 +59,12 @@ export async function loginWithSupabase(input: LoginInput): Promise<ActionResult
     })
 
     if (error) {
-      console.error('[Auth Supabase] Login error:', error.message)
+      recordFailedAttempt(validated.email)
       return { success: false, error: 'Email ou mot de passe incorrect' }
     }
+
+    // Login reussi : reset les tentatives
+    resetAttempts(validated.email)
 
     // Audit log
     await supabase.from('audit_logs').insert({
@@ -65,8 +78,8 @@ export async function loginWithSupabase(input: LoginInput): Promise<ActionResult
 
     revalidatePath('/', 'layout')
     return { success: true }
-  } catch (error) {
-    console.error('[Auth Supabase] Login exception:', error)
+  } catch {
+    console.error('Supabase login failed')
     return { success: false, error: 'Une erreur est survenue lors de la connexion' }
   }
 }
@@ -80,32 +93,43 @@ export async function loginWithPinSupabase(input: PinLoginInput): Promise<Action
   try {
     const validated = pinLoginSchema.parse(input)
 
-    // Utiliser le service client pour bypasser RLS (l'utilisateur n'est pas encore authentifié)
-    const { createServiceClient } = await import('@/lib/supabase/server')
-    const supabase = createServiceClient()
+    // Lockout check (PIN config: 3 tentatives / 5 min)
+    const lockout = checkLockout(validated.email, true)
+    if (lockout.locked) {
+      return { success: false, error: 'Compte temporairement verrouille suite a trop de tentatives PIN. Veuillez reessayer dans quelques minutes.' }
+    }
+
+    // Utiliser le service client pour bypasser RLS (l'utilisateur n'est pas encore authentifie)
+    const { createServiceClient: createSvcClient } = await import('@/lib/supabase/server')
+    const supabase = createSvcClient()
 
     // Rechercher l'utilisateur
-    const { data: utilisateur, error: dbError } = await supabase
+    const { data: utilisateur } = await supabase
       .from('utilisateurs')
       .select('id, nom, prenom, role, actif, pin_code, etablissement_id')
       .eq('email', validated.email)
       .single()
 
     if (!utilisateur || !utilisateur.actif) {
+      recordFailedAttempt(validated.email, true)
       return { success: false, error: 'Email ou PIN incorrect' }
     }
 
     if (!utilisateur.pin_code) {
-      return { success: false, error: 'Aucun PIN configuré pour cet utilisateur' }
+      return { success: false, error: 'Aucun PIN configure pour cet utilisateur' }
     }
 
-    // Vérifier le PIN
+    // Verifier le PIN
     const isPinValid = await verifyPin(validated.pin, utilisateur.pin_code)
     if (!isPinValid) {
+      recordFailedAttempt(validated.email, true)
       return { success: false, error: 'Email ou PIN incorrect' }
     }
 
-    // Pour l'auth PIN, on crée une session legacy (JWT custom)
+    // Login PIN reussi : reset les tentatives
+    resetAttempts(validated.email, true)
+
+    // Pour l'auth PIN, on cree une session legacy (JWT custom)
     // car Supabase Auth ne supporte pas l'auth par PIN
     const { createSession, setSessionCookie } = await import('@/lib/auth/session')
     const sessionPayload = {
@@ -132,8 +156,8 @@ export async function loginWithPinSupabase(input: PinLoginInput): Promise<Action
 
     revalidatePath('/', 'layout')
     return { success: true }
-  } catch (error) {
-    console.error('[Auth Supabase] PIN login exception:', error)
+  } catch {
+    console.error('Supabase PIN login failed')
     return { success: false, error: 'Une erreur est survenue lors de la connexion' }
   }
 }
@@ -172,8 +196,8 @@ export async function logoutSupabase(): Promise<void> {
     // Supprimer le cookie legacy si présent (pour les sessions PIN)
     const { deleteSessionCookie } = await import('@/lib/auth/session')
     await deleteSessionCookie()
-  } catch (error) {
-    console.error('[Auth Supabase] Logout exception:', error)
+  } catch {
+    console.error('Supabase logout failed')
   }
 
   redirect('/login')
@@ -243,38 +267,74 @@ export async function getCurrentUserSupabase() {
       etablissement: utilisateur.etablissements as { id: string; nom: string; logo: string | null },
       authProvider: 'supabase' as const,
     }
-  } catch (error) {
-    console.error('[Auth Supabase] Get current user exception:', error)
+  } catch {
+    console.error('Failed to get current Supabase user')
     return null
   }
 }
 
+/** Schema de validation pour la creation d'un utilisateur Supabase */
+const createSupabaseUserSchema = z.object({
+  email: z.string().email('Email invalide'),
+  password: z
+    .string()
+    .min(8, 'Le mot de passe doit contenir au moins 8 caracteres')
+    .regex(
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
+      'Le mot de passe doit contenir au moins une majuscule, une minuscule et un chiffre'
+    ),
+  role: z.enum(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CAISSIER', 'SERVEUR']).optional(),
+})
+
 /**
- * Créer un utilisateur dans Supabase Auth
+ * Creer un utilisateur dans Supabase Auth
+ * Necessite un role ADMIN ou SUPER_ADMIN
  */
 export async function createSupabaseUser(
   email: string,
-  password: string
+  password: string,
+  role?: string
 ): Promise<ActionResult<string>> {
   try {
-    const { createServiceClient } = await import('@/lib/supabase/server')
-    const supabaseAdmin = createServiceClient()
+    // Verifier l'authentification et les permissions
+    const { requireAuth } = await import('@/lib/auth')
+    const session = await requireAuth()
+
+    if (!['SUPER_ADMIN', 'ADMIN'].includes(session.role)) {
+      return { success: false, error: 'Permissions insuffisantes. Role ADMIN requis.' }
+    }
+
+    // Validation des inputs
+    const validated = createSupabaseUserSchema.parse({ email, password, role })
+
+    // Prevention de l'escalade de privileges si un role est specifie
+    if (validated.role) {
+      const ROLE_HIERARCHY: readonly string[] = ['SERVEUR', 'CAISSIER', 'MANAGER', 'ADMIN', 'SUPER_ADMIN'] as const
+      const creatorLevel = ROLE_HIERARCHY.indexOf(session.role)
+      const targetLevel = ROLE_HIERARCHY.indexOf(validated.role)
+      if (targetLevel >= creatorLevel) {
+        return { success: false, error: 'Vous ne pouvez pas creer un utilisateur avec un role egal ou superieur au votre.' }
+      }
+    }
+
+    const { createServiceClient: createSvcClient } = await import('@/lib/supabase/server')
+    const supabaseAdmin = createSvcClient()
 
     const { data, error } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
+      email: validated.email,
+      password: validated.password,
       email_confirm: true,
     })
 
     if (error) {
-      console.error('[Auth Supabase] Create user error:', error.message)
-      return { success: false, error: error.message }
+      console.error('Supabase user creation failed')
+      return { success: false, error: 'Erreur lors de la creation de l\'utilisateur' }
     }
 
     return { success: true, data: data.user.id }
-  } catch (error) {
-    console.error('[Auth Supabase] Create user exception:', error)
-    return { success: false, error: 'Erreur lors de la création de l\'utilisateur' }
+  } catch {
+    console.error('Supabase user creation failed')
+    return { success: false, error: 'Erreur lors de la creation de l\'utilisateur' }
   }
 }
 
@@ -287,14 +347,14 @@ export async function updateSupabasePassword(newPassword: string): Promise<Actio
     const { error } = await authClient.auth.updateUser({ password: newPassword })
 
     if (error) {
-      console.error('[Auth Supabase] Update password error:', error.message)
-      return { success: false, error: 'Erreur lors de la mise à jour du mot de passe' }
+      console.error('Supabase password update failed')
+      return { success: false, error: 'Erreur lors de la mise a jour du mot de passe' }
     }
 
     return { success: true }
-  } catch (error) {
-    console.error('[Auth Supabase] Update password exception:', error)
-    return { success: false, error: 'Erreur lors de la mise à jour du mot de passe' }
+  } catch {
+    console.error('Supabase password update failed')
+    return { success: false, error: 'Erreur lors de la mise a jour du mot de passe' }
   }
 }
 
@@ -362,9 +422,9 @@ export async function getDefaultRedirectRoute(): Promise<ActionResult<string>> {
 
     const defaultRoute = defaultRoutes[user.role] || '/caisse'
     return { success: true, data: defaultRoute }
-  } catch (error) {
-    console.error('[Auth Supabase] Get default redirect route exception:', error)
-    // En cas d'erreur, rediriger vers la caisse par défaut
+  } catch {
+    console.error('Failed to determine redirect route')
+    // En cas d'erreur, rediriger vers la caisse par defaut
     return { success: true, data: '/caisse' }
   }
 }

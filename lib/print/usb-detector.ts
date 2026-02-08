@@ -2,11 +2,21 @@
  * Module de detection automatique d'imprimantes USB
  * Detecte les ports COM/USB disponibles sous Windows et Linux
  *
+ * SECURITE : Utilise execFileSync au lieu de execSync pour eviter
+ * l'interpretation shell et les injections de commande.
+ * Tous les inputs sont valides par regex stricte avant utilisation.
+ *
  * @module lib/print/usb-detector
  */
 
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import { promises as fs } from "fs";
+
+/**
+ * Regex de validation stricte pour les chemins de peripheriques
+ */
+const COM_PORT_REGEX = /^COM\d{1,3}$/i;
+const DEV_PATH_REGEX = /^\/dev\/(ttyUSB\d{1,3}|ttyACM\d{1,3}|usb\/lp\d{1,3}|cu\.(usbserial|usbmodem)[\w.-]*)$/;
 
 /**
  * Peripherique USB detecte
@@ -77,33 +87,42 @@ export async function detectUSBDevices(): Promise<USBScanResult> {
 
 /**
  * Detecte les ports COM sous Windows via PowerShell
+ *
+ * SECURITE : Utilise execFileSync avec les arguments en tableau
+ * pour eviter l'injection de commande via le shell.
+ * Le nom du port est valide par COM_PORT_REGEX avant utilisation.
  */
 async function detectCOMPortsWindows(): Promise<DetectedUSBDevice[]> {
   const devices: DetectedUSBDevice[] = [];
 
   try {
-    // Methode 1: PowerShell simple pour lister les ports COM
-    const portsOutput = execSync(
-      'powershell -Command "[System.IO.Ports.SerialPort]::GetPortNames()"',
-      { encoding: "utf-8", timeout: 10000, windowsHide: true }
+    // execFileSync avec arguments en tableau : pas d'interpretation shell
+    const portsOutput = execFileSync(
+      "powershell",
+      ["-NoProfile", "-Command", "[System.IO.Ports.SerialPort]::GetPortNames()"],
+      { encoding: "utf-8", timeout: 5000, windowsHide: true }
     );
 
     const ports = portsOutput
       .split(/\r?\n/)
       .map((line) => line.trim())
-      .filter((line) => line.match(/^COM\d+$/i));
+      .filter((line) => COM_PORT_REGEX.test(line));
 
-    // Pour chaque port, essayer d'obtenir plus d'infos
+    // Pour chaque port valide, essayer d'obtenir plus d'infos
     for (const port of ports) {
       const device: DetectedUSBDevice = {
-        path: port,
+        path: port.toUpperCase(),
         type: "COM",
       };
 
-      // Essayer d'obtenir la description via WMI
+      // Obtenir la description via WMI avec execFileSync (pas d'injection)
       try {
-        const wmiOutput = execSync(
-          `powershell -Command "Get-WmiObject Win32_PnPEntity | Where-Object { $_.Name -like '*${port}*' } | Select-Object -First 1 -ExpandProperty Name"`,
+        // Le port est valide par COM_PORT_REGEX, mais on utilise execFileSync
+        // avec arguments en tableau pour defense en profondeur
+        const wmiCommand = `Get-WmiObject Win32_PnPEntity | Where-Object { $_.Name -like '*${port}*' } | Select-Object -First 1 -ExpandProperty Name`;
+        const wmiOutput = execFileSync(
+          "powershell",
+          ["-NoProfile", "-Command", wmiCommand],
           { encoding: "utf-8", timeout: 5000, windowsHide: true }
         );
         const description = wmiOutput.trim();
@@ -124,9 +143,9 @@ async function detectCOMPortsWindows(): Promise<DetectedUSBDevice[]> {
   } catch (error) {
     console.error("[USB Detection Windows] Erreur PowerShell:", error);
 
-    // Fallback: utiliser mode.com
+    // Fallback: utiliser mode.com via execFileSync
     try {
-      const modeOutput = execSync("mode", {
+      const modeOutput = execFileSync("mode", [], {
         encoding: "utf-8",
         timeout: 5000,
         windowsHide: true,
@@ -136,10 +155,12 @@ async function detectCOMPortsWindows(): Promise<DetectedUSBDevice[]> {
       if (comMatches) {
         const uniquePorts = [...new Set(comMatches)];
         for (const port of uniquePorts) {
-          devices.push({
-            path: port.toUpperCase(),
-            type: "COM",
-          });
+          if (COM_PORT_REGEX.test(port)) {
+            devices.push({
+              path: port.toUpperCase(),
+              type: "COM",
+            });
+          }
         }
       }
     } catch {
@@ -152,6 +173,9 @@ async function detectCOMPortsWindows(): Promise<DetectedUSBDevice[]> {
 
 /**
  * Detecte les peripheriques USB sous Linux
+ *
+ * SECURITE : Les chemins proviennent de readdir filtre par regex.
+ * udevadm est appele via execFileSync avec arguments en tableau.
  */
 async function detectUSBPortsLinux(): Promise<DetectedUSBDevice[]> {
   const devices: DetectedUSBDevice[] = [];
@@ -160,7 +184,7 @@ async function detectUSBPortsLinux(): Promise<DetectedUSBDevice[]> {
   try {
     const devFiles = await fs.readdir("/dev");
     const ttyUSBDevices = devFiles
-      .filter((name) => name.match(/^ttyUSB\d+$/))
+      .filter((name) => /^ttyUSB\d+$/.test(name))
       .map(
         (name): DetectedUSBDevice => ({
           path: `/dev/${name}`,
@@ -177,7 +201,7 @@ async function detectUSBPortsLinux(): Promise<DetectedUSBDevice[]> {
   try {
     const devFiles = await fs.readdir("/dev");
     const ttyACMDevices = devFiles
-      .filter((name) => name.match(/^ttyACM\d+$/))
+      .filter((name) => /^ttyACM\d+$/.test(name))
       .map(
         (name): DetectedUSBDevice => ({
           path: `/dev/${name}`,
@@ -194,7 +218,7 @@ async function detectUSBPortsLinux(): Promise<DetectedUSBDevice[]> {
   try {
     const usbFiles = await fs.readdir("/dev/usb");
     const lpDevices = usbFiles
-      .filter((name) => name.match(/^lp\d+$/))
+      .filter((name) => /^lp\d+$/.test(name))
       .map(
         (name): DetectedUSBDevice => ({
           path: `/dev/usb/${name}`,
@@ -208,11 +232,18 @@ async function detectUSBPortsLinux(): Promise<DetectedUSBDevice[]> {
   }
 
   // 4. Enrichir avec udevadm si disponible
+  //    SECURITE : execFileSync avec arguments en tableau + validation du chemin
   for (const device of devices) {
+    // Valider le chemin du peripherique par regex avant de le passer a udevadm
+    if (!DEV_PATH_REGEX.test(device.path)) {
+      continue;
+    }
+
     try {
-      const udevOutput = execSync(
-        `udevadm info --query=property --name=${device.path} 2>/dev/null | grep -E "ID_VENDOR=|ID_MODEL="`,
-        { encoding: "utf-8", timeout: 2000 }
+      const udevOutput = execFileSync(
+        "udevadm",
+        ["info", "--query=property", `--name=${device.path}`],
+        { encoding: "utf-8", timeout: 5000 }
       );
 
       const vendorMatch = udevOutput.match(/ID_VENDOR=(.+)/);
@@ -242,7 +273,7 @@ async function detectUSBPortsMacOS(): Promise<DetectedUSBDevice[]> {
   try {
     const devFiles = await fs.readdir("/dev");
     const cuDevices = devFiles
-      .filter((name) => name.match(/^cu\.(usbserial|usbmodem)/i))
+      .filter((name) => /^cu\.(usbserial|usbmodem)/i.test(name))
       .map(
         (name): DetectedUSBDevice => ({
           path: `/dev/${name}`,
@@ -260,10 +291,26 @@ async function detectUSBPortsMacOS(): Promise<DetectedUSBDevice[]> {
 
 /**
  * Verifie si un peripherique USB est accessible
+ *
+ * SECURITE : Valide le chemin par regex avant de tester l'acces.
+ * Seuls les chemins de peripheriques connus sont acceptes.
  */
-export async function testUSBDevice(path: string): Promise<boolean> {
+export async function testUSBDevice(devicePath: string): Promise<boolean> {
+  // Valider que le chemin correspond a un peripherique connu
+  if (!devicePath || typeof devicePath !== 'string') {
+    return false;
+  }
+
+  // Verifier que le chemin est un peripherique autorise (COM sous Windows, /dev/ sous Linux/macOS)
+  const isValidDevicePath =
+    COM_PORT_REGEX.test(devicePath) || DEV_PATH_REGEX.test(devicePath);
+
+  if (!isValidDevicePath) {
+    return false;
+  }
+
   try {
-    await fs.access(path, fs.constants.R_OK | fs.constants.W_OK);
+    await fs.access(devicePath, fs.constants.R_OK | fs.constants.W_OK);
     return true;
   } catch {
     return false;

@@ -1,13 +1,21 @@
 import { cookies } from 'next/headers'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
 /**
  * Route API pour nettoyer toutes les sessions (custom JWT + Supabase Auth)
- * Supporte GET et POST pour maximum de compatibilité
+ * POST uniquement - le GET a ete supprime pour eviter les attaques CSRF
  */
-async function clearSession() {
+
+export async function POST(request: NextRequest) {
   try {
+    // Verify Origin to prevent CSRF attacks
+    const origin = request.headers.get('origin')
+    const host = request.headers.get('host')
+    if (origin && host && !origin.includes(host.split(':')[0])) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
     const cookieStore = await cookies()
 
     // 1. Supprimer la session custom JWT
@@ -20,12 +28,12 @@ async function clearSession() {
       path: '/',
     })
 
-    // 2. Déconnecter de Supabase Auth (supprime les cookies sb-*)
+    // 2. Deconnecter de Supabase Auth (supprime les cookies sb-*)
     try {
       const supabase = await createClient()
       await supabase.auth.signOut()
     } catch {
-      // Ignorer les erreurs de signOut (session peut déjà être invalide)
+      // Ignorer les erreurs de signOut (session peut deja etre invalide)
     }
 
     // 3. Supprimer manuellement les cookies Supabase connus
@@ -41,22 +49,13 @@ async function clearSession() {
       message: 'All sessions cleared successfully'
     })
   } catch (error) {
-    console.error('[clear-session] Error:', error)
+    console.error('[clear-session] Error:', error instanceof Error ? error.message : 'unknown')
     return NextResponse.json(
       {
         success: false,
         error: 'Failed to clear session',
-        details: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }
     )
   }
-}
-
-export async function GET() {
-  return clearSession()
-}
-
-export async function POST() {
-  return clearSession()
 }

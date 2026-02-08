@@ -17,10 +17,8 @@ import {
 } from "@radix-ui/themes";
 import { Search, Check, ChevronDown } from "lucide-react";
 import * as LucideIcons from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { docCategoryIcons, blogPostIcons } from "@/schemas/content.schema";
-
-// Type pour les icônes Lucide
-type LucideIconComponent = React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
 
 interface IconPickerProps {
   value: string;
@@ -54,7 +52,7 @@ export function IconPicker({
   }, [iconList, search]);
 
   // Récupérer le composant icône actuel
-  const CurrentIcon = (LucideIcons as Record<string, LucideIconComponent>)[value] || LucideIcons.FileText;
+  const CurrentIcon = (LucideIcons as unknown as Record<string, LucideIcon>)[value] || LucideIcons.FileText;
   const currentIconLabel = iconList.find((i) => i.value === value)?.label || value;
 
   return (
@@ -126,7 +124,7 @@ export function IconPicker({
             <Box p="3">
               <Grid columns="4" gap="2">
                 {filteredIcons.map((icon) => {
-                  const IconComponent = (LucideIcons as Record<string, LucideIconComponent>)[icon.value] || LucideIcons.FileText;
+                  const IconComponent = (LucideIcons as unknown as Record<string, LucideIcon>)[icon.value] || LucideIcons.FileText;
                   const isSelected = value === icon.value;
 
                   return (

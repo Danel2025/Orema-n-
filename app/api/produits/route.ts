@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/db";
 import { getEtablissementId } from "@/lib/etablissement";
 import { produitSchema } from "@/schemas/produit.schema";
+import { sanitizeSearchTerm } from "@/lib/utils/sanitize";
 
 function getTauxTvaEnum(taux: number): "STANDARD" | "REDUIT" | "EXONERE" {
   if (taux === 0) return "EXONERE";
@@ -60,7 +61,10 @@ export async function GET(request: NextRequest) {
     if (categorieId) query = query.eq("categorie_id", categorieId);
     if (codeBarre) query = query.eq("code_barre", codeBarre);
     if (search) {
-      query = query.or(`nom.ilike.%${search}%,description.ilike.%${search}%,code_barre.ilike.%${search}%`);
+      const cleanSearch = sanitizeSearchTerm(search);
+      if (cleanSearch) {
+        query = query.or(`nom.ilike.%${cleanSearch}%,description.ilike.%${cleanSearch}%,code_barre.ilike.%${cleanSearch}%`);
+      }
     }
 
     const { data: produits, count, error } = await query

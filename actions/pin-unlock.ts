@@ -8,11 +8,12 @@
 import { createServiceClient } from '@/lib/db'
 import { verifyPin } from '@/lib/auth/password'
 import { getCurrentUserSupabase } from './auth-supabase'
+import { checkLockout, recordFailedAttempt, resetAttempts } from '@/lib/auth/login-lockout'
 
 type ActionResult = { success: boolean; error?: string }
 
 /**
- * Vérifie le PIN de l'utilisateur connecté pour déverrouiller la session
+ * Verifie le PIN de l'utilisateur connecte pour deverrouiller la session
  */
 export async function verifyPinForUnlock(pin: string): Promise<ActionResult> {
   try {
@@ -22,7 +23,14 @@ export async function verifyPinForUnlock(pin: string): Promise<ActionResult> {
 
     const currentUser = await getCurrentUserSupabase()
     if (!currentUser) {
-      return { success: false, error: 'Session expirée, veuillez vous reconnecter' }
+      return { success: false, error: 'Session expiree, veuillez vous reconnecter' }
+    }
+
+    // Lockout check (PIN config: 3 tentatives / 5 min)
+    const lockoutKey = `unlock:${currentUser.id}`
+    const lockout = checkLockout(lockoutKey, true)
+    if (lockout.locked) {
+      return { success: false, error: 'Deverrouillage temporairement bloque suite a trop de tentatives. Veuillez reessayer dans quelques minutes.' }
     }
 
     const supabase = createServiceClient()
@@ -32,18 +40,19 @@ export async function verifyPinForUnlock(pin: string): Promise<ActionResult> {
       .eq('id', currentUser.id)
       .single()
 
-    if (!utilisateur) return { success: false, error: 'Utilisateur non trouvé' }
-    if (!utilisateur.pin_code) return { success: false, error: 'Aucun PIN configuré. Contactez un administrateur.' }
+    if (!utilisateur) return { success: false, error: 'Utilisateur non trouve' }
+    if (!utilisateur.pin_code) return { success: false, error: 'Aucun PIN configure. Contactez un administrateur.' }
 
     const isPinValid = await verifyPin(pin, utilisateur.pin_code)
 
     if (!isPinValid) {
+      recordFailedAttempt(lockoutKey, true)
       try {
         await supabase.from('audit_logs').insert({
           action: 'LOGIN',
           entite: 'Utilisateur',
           entite_id: utilisateur.id,
-          description: `[PIN ECHEC] Tentative de déverrouillage échouée pour ${utilisateur.prenom} ${utilisateur.nom}`,
+          description: `Tentative de deverrouillage echouee`,
           utilisateur_id: utilisateur.id,
           etablissement_id: utilisateur.etablissement_id,
         })
@@ -51,20 +60,23 @@ export async function verifyPinForUnlock(pin: string): Promise<ActionResult> {
       return { success: false, error: 'PIN incorrect' }
     }
 
+    // PIN valide : reset les tentatives
+    resetAttempts(lockoutKey, true)
+
     try {
       await supabase.from('audit_logs').insert({
         action: 'LOGIN',
         entite: 'Utilisateur',
         entite_id: utilisateur.id,
-        description: `[PIN OK] Session déverrouillée par ${utilisateur.prenom} ${utilisateur.nom}`,
+        description: `Session deverrouillee`,
         utilisateur_id: utilisateur.id,
         etablissement_id: utilisateur.etablissement_id,
       })
     } catch { /* ignorer erreurs audit */ }
 
     return { success: true }
-  } catch (error) {
-    console.error('[PIN Unlock] Exception:', error)
+  } catch {
+    console.error('PIN unlock failed')
     return { success: false, error: 'Une erreur est survenue' }
   }
 }

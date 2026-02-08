@@ -8,12 +8,19 @@ import { cookies } from 'next/headers'
 import type { Role } from '@/lib/db/types'
 
 const SESSION_COOKIE_NAME = 'orema_session'
-const SESSION_DURATION = 30 * 24 * 60 * 60 * 1000 // 30 jours en millisecondes
-const PIN_SESSION_DURATION = 12 * 60 * 60 * 1000 // 12 heures pour sessions PIN
+const SESSION_DURATION = 8 * 60 * 60 * 1000 // 8 heures (un shift de travail POS)
+const PIN_SESSION_DURATION = 8 * 60 * 60 * 1000 // 8 heures pour sessions PIN
 
-// Clé secrète pour signer les JWT (doit être dans .env en production)
+// Clé secrète pour signer les JWT - OBLIGATOIRE via variable d'environnement
 const getSecret = () => {
-  return process.env.AUTH_SECRET || 'orema-dev-secret-change-in-production'
+  const AUTH_SECRET = process.env.AUTH_SECRET
+  if (!AUTH_SECRET) {
+    throw new Error(
+      'FATAL: AUTH_SECRET environment variable is required. ' +
+      'Generate one with: openssl rand -base64 32'
+    )
+  }
+  return AUTH_SECRET
 }
 
 export interface SessionPayload {
@@ -113,8 +120,8 @@ export async function verifySession(token: string): Promise<SessionPayload | nul
     const { iat, exp, ...sessionData } = payload
 
     return sessionData as SessionPayload
-  } catch (error) {
-    console.error('Erreur vérification session:', error)
+  } catch {
+    console.error('Session verification failed')
     return null
   }
 }
@@ -127,15 +134,11 @@ export async function getSession(): Promise<SessionPayload | null> {
   const cookieStore = await cookies()
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value
 
-  console.log('[getSession] Token present:', !!token)
-
   if (!token) {
     return null
   }
 
   const session = await verifySession(token)
-
-  console.log('[getSession] Session verified:', session ? `userId=${session.userId}` : 'null')
 
   if (!session) {
     return null
@@ -146,20 +149,18 @@ export async function getSession(): Promise<SessionPayload | null> {
   try {
     const { createServiceClient } = await import('@/lib/supabase/server')
     const supabase = createServiceClient()
-    const { data: etablissement, error } = await supabase
+    const { data: etablissement } = await supabase
       .from('etablissements')
       .select('id')
       .eq('id', session.etablissementId)
       .single()
 
-    console.log('[getSession] Etablissement check:', etablissement ? 'found' : 'not found', error ? `error: ${error.message}` : '')
-
     // Si l'établissement n'existe plus, la session est invalide
     if (!etablissement) {
       return null
     }
-  } catch (e) {
-    console.error('[getSession] Exception:', e)
+  } catch {
+    console.error('[getSession] Failed to validate session')
     return null
   }
 

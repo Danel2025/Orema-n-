@@ -15,9 +15,16 @@ export interface SessionPayload {
   isPinAuth?: boolean
 }
 
-// Clé secrète pour signer les JWT
+// Clé secrète pour signer les JWT - OBLIGATOIRE via variable d'environnement
 const getSecret = () => {
-  return process.env.AUTH_SECRET || 'orema-dev-secret-change-in-production'
+  const AUTH_SECRET = process.env.AUTH_SECRET
+  if (!AUTH_SECRET) {
+    throw new Error(
+      'FATAL: AUTH_SECRET environment variable is required. ' +
+      'Generate one with: openssl rand -base64 32'
+    )
+  }
+  return AUTH_SECRET
 }
 
 /**
@@ -154,8 +161,8 @@ export async function verifySessionEdge(
     const { iat, exp, ...sessionData } = payload
 
     return sessionData as SessionPayload
-  } catch (error) {
-    console.error('Erreur vérification session (Edge):', error)
+  } catch {
+    console.error('Edge session verification failed')
     return null
   }
 }

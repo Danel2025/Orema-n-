@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/db";
+import { getSession } from "@/lib/auth/session";
 import {
   generateTicketClient,
   generateBonCuisine,
@@ -36,6 +37,11 @@ interface AutoRouteResult {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ success: false, error: "Non authentifie" }, { status: 401 });
+    }
+
     const body = (await request.json()) as AutoRouteRequestBody;
     const { venteId, printTicket = true, printKitchen = true, printBar = true, urgent = false } = body;
 

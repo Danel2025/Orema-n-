@@ -23,16 +23,13 @@ export async function GET() {
       { status: 200 }
     );
   } catch (error) {
-    console.error("Health check failed:", error);
+    console.error("Health check failed:", error instanceof Error ? error.message : "unknown");
 
     return NextResponse.json(
       {
-        status: "error",
-        database: "disconnected",
-        timestamp: new Date().toISOString(),
-        error: error instanceof Error ? error.message : "Unknown error",
+        status: "unhealthy",
       },
-      { status: 500 }
+      { status: 503 }
     );
   }
 }

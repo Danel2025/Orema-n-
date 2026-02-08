@@ -272,6 +272,7 @@ export async function createVente(input: CreateVenteInput) {
   const etablissementId = await getEtablissementId();
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Vous devez être connecté" };
+  if (!user.etablissementId) return { success: false, error: "Aucun établissement associé" };
 
   // Les serveurs ne peuvent pas encaisser
   if (user.role === "SERVEUR") {
@@ -384,6 +385,7 @@ export async function createVenteEnAttente(input: CreateVenteEnAttenteInput) {
   const etablissementId = await getEtablissementId();
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Vous devez être connecté" };
+  if (!user.etablissementId) return { success: false, error: "Aucun établissement associé" };
 
   if (input.typeVente === "DIRECT") {
     return { success: false, error: "La mise en attente n'est pas disponible pour les ventes directes" };
@@ -513,6 +515,7 @@ export async function payerVenteEnAttente(input: {
   const etablissementId = await getEtablissementId();
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Vous devez être connecté" };
+  if (!user.etablissementId) return { success: false, error: "Aucun établissement associé" };
 
   // Les serveurs ne peuvent pas encaisser
   if (user.role === "SERVEUR") {
@@ -583,6 +586,7 @@ export async function addToVenteEnAttente(venteId: string, lignes: LigneVenteInp
   const etablissementId = await getEtablissementId();
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Vous devez être connecté" };
+  if (!user.etablissementId) return { success: false, error: "Aucun établissement associé" };
 
   const supabase = await createAuthenticatedClient({
     userId: user.userId,
@@ -672,6 +676,7 @@ export async function annulerVenteEnAttente(venteId: string) {
   const etablissementId = await getEtablissementId();
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Vous devez être connecté" };
+  if (!user.etablissementId) return { success: false, error: "Aucun établissement associé" };
 
   const supabase = await createAuthenticatedClient({
     userId: user.userId,
@@ -737,6 +742,7 @@ export async function createVenteEnCompte(input: CreateVenteEnAttenteInput & { c
   const etablissementId = await getEtablissementId();
   const user = await getCurrentUser();
   if (!user) return { success: false, error: "Vous devez être connecté" };
+  if (!user.etablissementId) return { success: false, error: "Aucun établissement associé" };
 
   // Les serveurs ne peuvent pas encaisser ni mettre en compte
   if (user.role === "SERVEUR") {
@@ -862,7 +868,7 @@ export async function createVenteEnCompte(input: CreateVenteEnAttenteInput & { c
 export async function getVentesJour() {
   const etablissementId = await getEtablissementId();
   const user = await getCurrentUser();
-  if (!user) return [];
+  if (!user || !user.etablissementId) return [];
 
   const supabase = await createAuthenticatedClient({
     userId: user.userId,
@@ -905,7 +911,7 @@ export async function getVentesJour() {
 export async function getStatsJour() {
   const etablissementId = await getEtablissementId();
   const user = await getCurrentUser();
-  if (!user) return { totalVentes: 0, chiffreAffaires: 0, articlesVendus: 0, panierMoyen: 0 };
+  if (!user || !user.etablissementId) return { totalVentes: 0, chiffreAffaires: 0, articlesVendus: 0, panierMoyen: 0 };
 
   const supabase = await createAuthenticatedClient({
     userId: user.userId,
@@ -945,7 +951,7 @@ export async function getStatsJour() {
 export async function getVentesEnAttente() {
   const etablissementId = await getEtablissementId();
   const user = await getCurrentUser();
-  if (!user) return [];
+  if (!user || !user.etablissementId) return [];
 
   const supabase = await createAuthenticatedClient({
     userId: user.userId,
@@ -996,7 +1002,7 @@ export async function getVentesEnAttente() {
 export async function getVenteEnAttenteByTable(tableId: string) {
   const etablissementId = await getEtablissementId();
   const user = await getCurrentUser();
-  if (!user) return null;
+  if (!user || !user.etablissementId) return null;
 
   const supabase = await createAuthenticatedClient({
     userId: user.userId,
@@ -1050,7 +1056,7 @@ export async function getVenteEnAttenteByTable(tableId: string) {
 export async function getVentesEnAttenteCount() {
   const etablissementId = await getEtablissementId();
   const user = await getCurrentUser();
-  if (!user) return 0;
+  if (!user || !user.etablissementId) return 0;
 
   const supabase = await createAuthenticatedClient({
     userId: user.userId,

@@ -351,38 +351,38 @@ export const useCartStore = create<CartStore>()(
     }),
     {
       name: "cart-storage",
-      version: 1,
-      // Ne persister que certains champs
+      version: 2,
+      // Ne persister que l'etat UI necessaire - PAS de donnees financieres sensibles
+      // SECURITY: Ne pas persister :
+      // - client (contient soldeCredit, limitCredit, creditAutorise - donnees financieres)
+      // - clientId (reference vers donnees sensibles, sera re-selectionne)
+      // - remise avec montants (recalcule cote serveur)
+      // - paiements (jamais persister de donnees de paiement)
       partialize: (state) => ({
         items: state.items,
-        remise: state.remise,
         typeVente: state.typeVente,
         tableId: state.tableId,
         table: state.table,
-        clientId: state.clientId,
-        client: state.client,
         adresseLivraison: state.adresseLivraison,
         telephoneLivraison: state.telephoneLivraison,
         notesLivraison: state.notesLivraison,
       }),
       // Migration pour garantir que tous les items ont un lineId
+      // SECURITY: version bump to 2 to force clearing persisted client/remise data
       migrate: (persistedState, version) => {
         const state = persistedState as CartState & { pendingQuantity?: number | null };
-        if (version === 0 && state.items) {
+        if (state.items) {
           state.items = state.items.map((item) => ({
             ...item,
             lineId: item.lineId || crypto.randomUUID(),
           }));
         }
-        // Return a complete CartState
+        // Return only safe-to-persist fields, strip sensitive data from old versions
         return {
           items: state.items || [],
-          remise: state.remise,
           typeVente: state.typeVente || "DIRECT",
           tableId: state.tableId,
           table: state.table,
-          clientId: state.clientId,
-          client: state.client,
           adresseLivraison: state.adresseLivraison,
           telephoneLivraison: state.telephoneLivraison,
           notesLivraison: state.notesLivraison,

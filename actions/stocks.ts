@@ -19,6 +19,7 @@ import {
   type ValorisationStock,
   type TypeMouvementType,
 } from "@/schemas/stock.schema";
+import { sanitizeSearchTerm } from "@/lib/utils/sanitize";
 
 /**
  * Calcule le statut de stock d'un produit
@@ -61,9 +62,12 @@ export async function getStockStatus(options?: {
     }
 
     if (options?.search) {
-      query = query.or(
-        `nom.ilike.%${options.search}%,code_barre.ilike.%${options.search}%`
-      );
+      const cleanSearch = sanitizeSearchTerm(options.search);
+      if (cleanSearch) {
+        query = query.or(
+          `nom.ilike.%${cleanSearch}%,code_barre.ilike.%${cleanSearch}%`
+        );
+      }
     }
 
     const { data: produits, error } = await query.order("nom");

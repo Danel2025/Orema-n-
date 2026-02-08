@@ -23,6 +23,7 @@ function canEditRolePermissions(userRole: Role, targetRole: Role): boolean {
 export async function getRolePermissionConfig(role: Role): Promise<ActionResult<{ permissions: Permission[]; isCustom: boolean; isEditable: boolean }>> {
   try {
     const session = await requireAuth()
+    if (!session.etablissementId) return { success: false, error: "Aucun établissement associé" }
     const permissions = await getPermissionsForRole(role, session.etablissementId)
     const isCustom = await hasCustomPermissions(role, session.etablissementId)
     const isEditable = canEditRolePermissions(session.role as Role, role)
@@ -36,6 +37,7 @@ export async function getRolePermissionConfig(role: Role): Promise<ActionResult<
 export async function getAllRolePermissionConfigs(): Promise<ActionResult<Record<Role, { permissions: Permission[]; isCustom: boolean; isEditable: boolean }>>> {
   try {
     const session = await requireAuth()
+    if (!session.etablissementId) return { success: false, error: "Aucun établissement associé" }
     const allPermissions = await getAllRolePermissions(session.etablissementId)
     const result = {} as Record<Role, { permissions: Permission[]; isCustom: boolean; isEditable: boolean }>
     const roles: Role[] = ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CAISSIER', 'SERVEUR']
@@ -50,6 +52,7 @@ export async function getAllRolePermissionConfigs(): Promise<ActionResult<Record
 export async function updateRolePermissions(role: Role, permissions: Permission[]): Promise<ActionResult> {
   try {
     const session = await requireAnyRole(['SUPER_ADMIN', 'ADMIN'])
+    if (!session.etablissementId) return { success: false, error: "Aucun établissement associé" }
     if (!canEditRolePermissions(session.role as Role, role)) return { success: false, error: 'Vous ne pouvez pas modifier les permissions de ce rôle' }
 
     await saveRolePermissions(role, permissions, session.etablissementId)
@@ -74,6 +77,7 @@ export async function updateRolePermissions(role: Role, permissions: Permission[
 export async function togglePermission(role: Role, permission: Permission, enabled: boolean): Promise<ActionResult> {
   try {
     const session = await requireAnyRole(['SUPER_ADMIN', 'ADMIN'])
+    if (!session.etablissementId) return { success: false, error: "Aucun établissement associé" }
     if (!canEditRolePermissions(session.role as Role, role)) return { success: false, error: 'Vous ne pouvez pas modifier les permissions de ce rôle' }
 
     const currentPermissions = await getPermissionsForRole(role, session.etablissementId)
@@ -102,6 +106,7 @@ export async function togglePermission(role: Role, permission: Permission, enabl
 export async function resetRolePermissionsToDefaults(role: Role): Promise<ActionResult> {
   try {
     const session = await requireAnyRole(['SUPER_ADMIN', 'ADMIN'])
+    if (!session.etablissementId) return { success: false, error: "Aucun établissement associé" }
     if (!canEditRolePermissions(session.role as Role, role)) return { success: false, error: 'Vous ne pouvez pas modifier les permissions de ce rôle' }
 
     await resetRolePermissions(role, session.etablissementId)
@@ -125,6 +130,7 @@ export async function resetRolePermissionsToDefaults(role: Role): Promise<Action
 export async function enableAllPermissionsInGroup(role: Role, groupPermissions: Permission[]): Promise<ActionResult> {
   try {
     const session = await requireAnyRole(['SUPER_ADMIN', 'ADMIN'])
+    if (!session.etablissementId) return { success: false, error: "Aucun établissement associé" }
     if (!canEditRolePermissions(session.role as Role, role)) return { success: false, error: 'Vous ne pouvez pas modifier les permissions de ce rôle' }
 
     const currentPermissions = await getPermissionsForRole(role, session.etablissementId)
@@ -142,6 +148,7 @@ export async function enableAllPermissionsInGroup(role: Role, groupPermissions: 
 export async function disableAllPermissionsInGroup(role: Role, groupPermissions: Permission[]): Promise<ActionResult> {
   try {
     const session = await requireAnyRole(['SUPER_ADMIN', 'ADMIN'])
+    if (!session.etablissementId) return { success: false, error: "Aucun établissement associé" }
     if (!canEditRolePermissions(session.role as Role, role)) return { success: false, error: 'Vous ne pouvez pas modifier les permissions de ce rôle' }
 
     const currentPermissions = await getPermissionsForRole(role, session.etablissementId)

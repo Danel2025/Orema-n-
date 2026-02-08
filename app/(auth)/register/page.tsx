@@ -8,7 +8,7 @@
  * Étape 2: Informations établissement (nom, téléphone, adresse, etc.)
  */
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -29,7 +29,7 @@ import {
   ArrowRight,
 } from 'lucide-react'
 
-export default function RegisterPage() {
+function RegisterPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [step, setStep] = useState<1 | 2>(1)
@@ -545,5 +545,13 @@ export default function RegisterPage() {
         </div>
       </div>
     </>
+  )
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense>
+      <RegisterPageContent />
+    </Suspense>
   )
 }

@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/db";
 import { getEtablissement } from "@/lib/etablissement";
+import { getSession } from "@/lib/auth/session";
 import {
   generateTicketClient,
   generateTestTicket,
@@ -36,6 +37,11 @@ interface PrintRequestBody {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: "Non authentifie" }, { status: 401 });
+    }
+
     const body = (await request.json()) as PrintRequestBody;
     const { type, data, printerId, venteId, sessionId } = body;
 

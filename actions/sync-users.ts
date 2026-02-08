@@ -28,6 +28,7 @@ export async function syncAuthToUtilisateurs(): Promise<ActionResult<SyncResult>
   try {
     // Vérifier les permissions (SUPER_ADMIN uniquement)
     const session = await requireAnyRole(['SUPER_ADMIN'])
+    if (!session.etablissementId) return { success: false, error: "Aucun établissement associé" }
 
     const supabase = createServiceClient()
     const adminSupabase = createServiceClient()

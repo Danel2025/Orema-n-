@@ -53,6 +53,9 @@ export async function getProduitsPaginated(
   options: PaginationOptions = {}
 ) {
   const etablissementId = await getEtablissementId();
+  // SECURITY: Service client used here (bypasses RLS).
+  // Reason: Read-only product listing scoped by etablissementId from session.
+  // TODO: Migrate to authenticated client after adding proper RLS policies for produits table.
   const supabase = createServiceClient();
 
   const {
@@ -130,6 +133,9 @@ export async function getProduits(options?: {
   search?: string;
 }) {
   const etablissementId = await getEtablissementId();
+  // SECURITY: Service client used here (bypasses RLS).
+  // Reason: Read-only product listing scoped by etablissementId from session.
+  // TODO: Migrate to authenticated client after adding proper RLS policies for produits table.
   const supabase = createServiceClient();
 
   const produits = await db.getProduits(supabase, etablissementId, {
@@ -169,6 +175,9 @@ export async function getProduits(options?: {
  */
 export async function getProduitById(id: string) {
   const etablissementId = await getEtablissementId();
+  // SECURITY: Service client used here (bypasses RLS).
+  // Reason: Read-only single product fetch, ownership verified via etablissementId check below.
+  // TODO: Migrate to authenticated client after adding proper RLS policies for produits table.
   const supabase = createServiceClient();
 
   const produit = await db.getProduitById(supabase, id);
@@ -208,6 +217,10 @@ export async function getProduitById(id: string) {
 export async function createProduit(data: ProduitFormData) {
   try {
     const etablissementId = await getEtablissementId();
+    // SECURITY: Service client used here (bypasses RLS).
+    // Reason: Write operation (INSERT) requires service role to create product rows.
+    // getEtablissementId() validates the user session before proceeding.
+    // TODO: Migrate to authenticated client after adding proper RLS policies for produits table.
     const supabase = createServiceClient();
 
     // Validation
@@ -294,6 +307,10 @@ export async function createProduit(data: ProduitFormData) {
 export async function updateProduit(id: string, data: ProduitFormData) {
   try {
     const etablissementId = await getEtablissementId();
+    // SECURITY: Service client used here (bypasses RLS).
+    // Reason: Write operation (UPDATE) requires service role. Ownership verified via
+    // etablissementId check on the existing product before mutation.
+    // TODO: Migrate to authenticated client after adding proper RLS policies for produits table.
     const supabase = createServiceClient();
 
     // Validation
@@ -379,6 +396,10 @@ export async function updateProduit(id: string, data: ProduitFormData) {
 export async function deleteProduit(id: string) {
   try {
     const etablissementId = await getEtablissementId();
+    // SECURITY: Service client used here (bypasses RLS).
+    // Reason: Soft-delete operation requires service role. Ownership verified via
+    // etablissementId check before deletion.
+    // TODO: Migrate to authenticated client after adding proper RLS policies for produits table.
     const supabase = createServiceClient();
 
     // Vérifier que le produit existe et appartient à l'établissement
@@ -414,6 +435,10 @@ export async function deleteProduit(id: string) {
 export async function toggleProduitActif(id: string) {
   try {
     const etablissementId = await getEtablissementId();
+    // SECURITY: Service client used here (bypasses RLS).
+    // Reason: Toggle actif status requires service role. Ownership verified via
+    // etablissementId check before mutation.
+    // TODO: Migrate to authenticated client after adding proper RLS policies for produits table.
     const supabase = createServiceClient();
 
     const produit = await db.getProduitById(supabase, id);
@@ -458,6 +483,10 @@ export async function updateStock(
 ) {
   try {
     const etablissementId = await getEtablissementId();
+    // SECURITY: Service client used here (bypasses RLS).
+    // Reason: Stock mutation requires service role for both produits and mouvements_stock tables.
+    // Ownership verified via etablissementId check and gerer_stock flag validation.
+    // TODO: Migrate to authenticated client after adding proper RLS policies for produits/mouvements_stock tables.
     const supabase = createServiceClient();
 
     const produit = await db.getProduitById(supabase, id);
@@ -526,6 +555,9 @@ export async function updateStock(
  */
 export async function exportProduitsCSV() {
   const etablissementId = await getEtablissementId();
+  // SECURITY: Service client used here (bypasses RLS).
+  // Reason: Read-only bulk export of all products for CSV generation, scoped by etablissementId.
+  // TODO: Migrate to authenticated client after adding proper RLS policies for produits/categories tables.
   const supabase = createServiceClient();
 
   const produits = await db.getProduits(supabase, etablissementId);
@@ -605,6 +637,9 @@ function escapeCsvField(field: string): string {
  */
 export async function getCSVTemplate() {
   const etablissementId = await getEtablissementId();
+  // SECURITY: Service client used here (bypasses RLS).
+  // Reason: Read-only categories fetch to build CSV template, scoped by etablissementId.
+  // TODO: Migrate to authenticated client after adding proper RLS policies for categories table.
   const supabase = createServiceClient();
 
   // Récupérer les catégories pour référence
@@ -672,6 +707,9 @@ export async function getCSVTemplate() {
  */
 export async function parseCSVImport(csvContent: string) {
   const etablissementId = await getEtablissementId();
+  // SECURITY: Service client used here (bypasses RLS).
+  // Reason: Read-only categories fetch for CSV validation, scoped by etablissementId.
+  // TODO: Migrate to authenticated client after adding proper RLS policies for categories table.
   const supabase = createServiceClient();
 
   // Récupérer les catégories existantes
@@ -797,6 +835,10 @@ function parseCSVLine(line: string): string[] {
 export async function importProduitsCSV(produitsData: ProduitCsvData[]) {
   try {
     const etablissementId = await getEtablissementId();
+    // SECURITY: Service client used here (bypasses RLS).
+    // Reason: Bulk write operation (INSERT/UPDATE) for CSV import requires service role.
+    // getEtablissementId() validates the user session. Each product is scoped to the etablissement.
+    // TODO: Migrate to authenticated client after adding proper RLS policies for produits/categories tables.
     const supabase = createServiceClient();
 
     // Récupérer les catégories

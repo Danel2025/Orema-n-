@@ -10,6 +10,7 @@ import { getEtablissement } from "@/lib/etablissement";
 import { parseProductsCSV, mapCSVToProduct } from "@/lib/csv/parser";
 import { exportProductsToCSV, exportVentesToCSV, exportClientsToCSV } from "@/lib/csv/exporter";
 import { revalidatePath } from "next/cache";
+import { sanitizeSearchTerm } from "@/lib/utils/sanitize";
 
 interface ImportResult {
   success: boolean;
@@ -19,10 +20,18 @@ interface ImportResult {
   erreurs: { ligne: number; message: string }[];
 }
 
+const MAX_CSV_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_CSV_ROWS = 10000;
+
 export async function importProductsFromCSV(formData: FormData): Promise<ImportResult> {
   try {
     const file = formData.get("file") as File;
     if (!file) return { success: false, message: "Aucun fichier fourni", importes: 0, ignores: 0, erreurs: [] };
+
+    // Verification de la taille du fichier
+    if (file.size > MAX_CSV_SIZE) {
+      return { success: false, message: "Fichier trop volumineux (max 5MB)", importes: 0, ignores: 0, erreurs: [] };
+    }
 
     const content = await file.text();
     const parseResult = await parseProductsCSV(content);
@@ -34,6 +43,17 @@ export async function importProductsFromCSV(formData: FormData): Promise<ImportR
         importes: 0,
         ignores: parseResult.lignesEnErreur,
         erreurs: parseResult.errors.map((e) => ({ ligne: e.ligne, message: `${e.champ}: ${e.message}` })),
+      };
+    }
+
+    // Verification du nombre de lignes
+    if (parseResult.produits.length > MAX_CSV_ROWS) {
+      return {
+        success: false,
+        message: `Trop de lignes (${parseResult.produits.length}). Maximum autorise : ${MAX_CSV_ROWS}`,
+        importes: 0,
+        ignores: 0,
+        erreurs: [],
       };
     }
 
@@ -76,11 +96,13 @@ export async function importProductsFromCSV(formData: FormData): Promise<ImportR
         const categorieId = categoriesMap.get(produit.categorie.toLowerCase());
         if (!categorieId) { erreurs.push({ ligne, message: `Catégorie non trouvée: ${produit.categorie}` }); ignores++; continue; }
 
+        const cleanNom = sanitizeSearchTerm(produit.nom);
+        const cleanCodeBarre = produit.codeBarre ? sanitizeSearchTerm(produit.codeBarre) : null;
         const { data: existant } = await supabase
           .from("produits")
           .select("id")
           .eq("etablissement_id", etablissement.id)
-          .or(produit.codeBarre ? `code_barre.eq.${produit.codeBarre},nom.eq.${produit.nom}` : `nom.eq.${produit.nom}`)
+          .or(cleanCodeBarre ? `code_barre.eq.${cleanCodeBarre},nom.eq.${cleanNom}` : `nom.eq.${cleanNom}`)
           .single();
 
         const productData = mapCSVToProduct(produit, categorieId, etablissement.id);

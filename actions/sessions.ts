@@ -121,7 +121,7 @@ function calculatePaymentTotals(paiements: Array<{ mode_paiement: string; montan
 export async function getActiveSession(): Promise<SessionActive | null> {
   try {
     const user = await getCurrentUser();
-    if (!user) return null;
+    if (!user || !user.etablissementId) return null;
 
     // Utiliser le service client pour bypasser les RLS
     const supabase = createServiceClient();
@@ -182,7 +182,7 @@ export async function getActiveSession(): Promise<SessionActive | null> {
 export async function hasActiveSession(): Promise<boolean> {
   try {
     const user = await getCurrentUser();
-    if (!user) return false;
+    if (!user || !user.etablissementId) return false;
 
     // Utiliser le service client pour bypasser les RLS
     const supabase = createServiceClient();
@@ -203,6 +203,7 @@ export async function hasActiveSession(): Promise<boolean> {
 export async function openSession(data: { fondCaisse: number }) {
   try {
     const user = await requireAuth();
+    if (!user.etablissementId) return { success: false, error: "Aucun établissement associé" };
     const validated = OpenSessionSchema.safeParse(data);
     if (!validated.success) return { success: false, error: validated.error.issues[0].message };
 
@@ -329,7 +330,7 @@ export async function closeSession(data: { sessionId: string; especesComptees: n
       ancienne_valeur: JSON.stringify({ fondCaisse: Number(session.fond_caisse) }),
       nouvelle_valeur: JSON.stringify({ totalVentes, totalEspeces, especesComptees: validated.data.especesComptees, ecart, dateCloture: updated.date_cloture }),
       utilisateur_id: user.userId,
-      etablissement_id: user.etablissementId,
+      etablissement_id: user.etablissementId ?? session.etablissement_id,
     });
 
     revalidatePath("/caisse");
@@ -420,7 +421,7 @@ export async function getSessionStats(sessionId: string): Promise<SessionStats |
 export async function getSessionsHistory(limit = 20): Promise<SessionHistoryItem[]> {
   try {
     const user = await getCurrentUser();
-    if (!user) return [];
+    if (!user || !user.etablissementId) return [];
 
     // Utiliser le service client pour bypasser les RLS
     const supabase = createServiceClient();

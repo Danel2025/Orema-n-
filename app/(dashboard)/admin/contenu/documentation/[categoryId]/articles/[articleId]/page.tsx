@@ -88,7 +88,7 @@ export default function EditArticlePage({
     reset,
     formState: { errors, isDirty },
   } = useForm<DocArticleFormData>({
-    resolver: zodResolver(docArticleSchema),
+    resolver: zodResolver(docArticleSchema) as never,
     defaultValues: {
       categoryId,
       slug: "",
@@ -129,7 +129,7 @@ export default function EditArticlePage({
           title: articleData.title,
           description: articleData.description || "",
           content: articleData.content,
-          readTime: articleData.read_time,
+          readTime: articleData.read_time || "5 min",
           ordre: articleData.ordre,
           status: articleData.status,
           metaTitle: articleData.meta_title || "",
@@ -247,7 +247,7 @@ export default function EditArticlePage({
         </Flex>
       </motion.div>
 
-      <form onSubmit={handleSubmit(onSubmit)}>
+      <form onSubmit={handleSubmit(onSubmit as never)}>
         <Flex gap="6" direction={{ initial: "column", lg: "row" }}>
           {/* Main Form */}
           <motion.div

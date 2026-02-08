@@ -64,7 +64,7 @@ export default function NouvelArticlePage({
     setValue,
     formState: { errors },
   } = useForm<DocArticleFormData>({
-    resolver: zodResolver(docArticleSchema),
+    resolver: zodResolver(docArticleSchema) as never,
     defaultValues: {
       categoryId,
       slug: "",
@@ -177,7 +177,7 @@ export default function NouvelArticlePage({
         </Flex>
       </motion.div>
 
-      <form onSubmit={handleSubmit(onSubmit)}>
+      <form onSubmit={handleSubmit(onSubmit as never)}>
         <Flex gap="6" direction={{ initial: "column", lg: "row" }}>
           {/* Main Form */}
           <motion.div

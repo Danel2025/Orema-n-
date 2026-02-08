@@ -3,13 +3,24 @@
  * Migré vers Supabase (déjà partiellement Supabase)
  */
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createSupabaseAdminClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/db'
 import { hashPassword, hashPin } from '@/lib/auth/password'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // Disable in production unless SETUP_TOKEN is provided
+    if (process.env.NODE_ENV === 'production') {
+      const setupToken = request.headers.get('x-setup-token')
+      if (!setupToken || setupToken !== process.env.SETUP_TOKEN) {
+        return NextResponse.json(
+          { error: 'Endpoint desactive en production' },
+          { status: 403 }
+        )
+      }
+    }
+
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 
@@ -109,24 +120,22 @@ export async function GET() {
         dbStatus = 'already_exists'
       }
 
-      results.push({ email: userData.email, authStatus, authId: authUserId, dbStatus })
+      results.push({ email: userData.email, authStatus, dbStatus })
+    }
+
+    // Log credentials only in development
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('Setup Auth credentials:', usersToCreate.map((u) => ({ email: u.email, role: u.role, pin: '****' })))
     }
 
     return NextResponse.json({
       success: true,
-      message: 'Configuration Supabase Auth terminée',
-      users: results,
-      credentials: usersToCreate.map((u) => ({ email: u.email, password: u.password, pin: u.pin, role: u.role })),
-      nextSteps: [
-        'Allez sur /login',
-        'Connectez-vous avec admin@orema.ga / Admin123!',
-        'Ou avec superadmin@orema.ga / SuperAdmin123!',
-      ],
+      message: 'Configuration Supabase Auth terminee. Consultez les logs serveur pour les credentials.',
     })
   } catch (error) {
-    console.error('[Setup Auth] Erreur:', error)
+    console.error('[Setup Auth] Erreur:', error instanceof Error ? error.message : 'unknown')
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Erreur inconnue' },
+      { success: false, error: 'Erreur lors de la configuration auth' },
       { status: 500 }
     )
   }

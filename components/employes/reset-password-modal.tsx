@@ -217,7 +217,7 @@ export function ResetPasswordModal({
               <Callout.Icon>
                 <Check size={16} />
               </Callout.Icon>
-              <Callout.Text as="div">
+              <Callout.Text>
                 <Flex direction="column" gap="2">
                   <Text>Mot de passe reinitialise avec succes :</Text>
                   <Flex align="center" gap="2">

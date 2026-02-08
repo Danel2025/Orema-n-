@@ -1,9 +1,3 @@
-/**
- * Types générés automatiquement pour Supabase Database
- * Projet: Oréma N+ POS System
- * Généré le: 2026-01-29
- */
-
 export type Json =
   | string
   | number
@@ -20,39 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      _prisma_migrations: {
-        Row: {
-          applied_steps_count: number
-          checksum: string
-          finished_at: string | null
-          id: string
-          logs: string | null
-          migration_name: string
-          rolled_back_at: string | null
-          started_at: string
-        }
-        Insert: {
-          applied_steps_count?: number
-          checksum: string
-          finished_at?: string | null
-          id: string
-          logs?: string | null
-          migration_name: string
-          rolled_back_at?: string | null
-          started_at?: string
-        }
-        Update: {
-          applied_steps_count?: number
-          checksum?: string
-          finished_at?: string | null
-          id?: string
-          logs?: string | null
-          migration_name?: string
-          rolled_back_at?: string | null
-          started_at?: string
-        }
-        Relationships: []
-      }
       audit_logs: {
         Row: {
           action: Database["public"]["Enums"]["ActionAudit"]
@@ -109,6 +70,343 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      backup_schedules: {
+        Row: {
+          actif: boolean
+          categories: Json
+          created_at: string
+          derniere_execution: string | null
+          etablissement_id: string
+          frequence: string
+          heure_execution: string
+          id: string
+          jour_mois: number | null
+          jour_semaine: number | null
+          nom: string
+          prochaine_execution: string | null
+          retention_jours: number
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          actif?: boolean
+          categories?: Json
+          created_at?: string
+          derniere_execution?: string | null
+          etablissement_id: string
+          frequence: string
+          heure_execution?: string
+          id?: string
+          jour_mois?: number | null
+          jour_semaine?: number | null
+          nom: string
+          prochaine_execution?: string | null
+          retention_jours?: number
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          actif?: boolean
+          categories?: Json
+          created_at?: string
+          derniere_execution?: string | null
+          etablissement_id?: string
+          frequence?: string
+          heure_execution?: string
+          id?: string
+          jour_mois?: number | null
+          jour_semaine?: number | null
+          nom?: string
+          prochaine_execution?: string | null
+          retention_jours?: number
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "backup_schedules_etablissement_id_fkey"
+            columns: ["etablissement_id"]
+            isOneToOne: false
+            referencedRelation: "etablissements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      backups: {
+        Row: {
+          categories: Json
+          checksum: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          error_message: string | null
+          etablissement_id: string
+          file_size: number | null
+          format: string
+          id: string
+          nom: string
+          record_count: number | null
+          status: string
+          storage_path: string | null
+          type: string
+        }
+        Insert: {
+          categories?: Json
+          checksum?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          error_message?: string | null
+          etablissement_id: string
+          file_size?: number | null
+          format?: string
+          id?: string
+          nom: string
+          record_count?: number | null
+          status?: string
+          storage_path?: string | null
+          type: string
+        }
+        Update: {
+          categories?: Json
+          checksum?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          error_message?: string | null
+          etablissement_id?: string
+          file_size?: number | null
+          format?: string
+          id?: string
+          nom?: string
+          record_count?: number | null
+          status?: string
+          storage_path?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "backups_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "utilisateurs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "backups_etablissement_id_fkey"
+            columns: ["etablissement_id"]
+            isOneToOne: false
+            referencedRelation: "etablissements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      blog_authors: {
+        Row: {
+          avatar_url: string | null
+          bio: string | null
+          created_at: string
+          id: string
+          name: string
+          role: string | null
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          role?: string | null
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          role?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      blog_categories: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          name: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          name: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          name?: string
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      blog_post_tags: {
+        Row: {
+          post_id: string
+          tag_id: string
+        }
+        Insert: {
+          post_id: string
+          tag_id: string
+        }
+        Update: {
+          post_id?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blog_post_tags_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "blog_posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "blog_post_tags_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "blog_tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      blog_posts: {
+        Row: {
+          author_id: string
+          category_id: string
+          color: string | null
+          content: string
+          created_at: string
+          created_by: string | null
+          excerpt: string | null
+          featured: boolean
+          featured_image: string | null
+          icon: string | null
+          id: string
+          meta_description: string | null
+          meta_title: string | null
+          published_at: string | null
+          slug: string
+          status: Database["public"]["Enums"]["content_status"]
+          title: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          author_id: string
+          category_id: string
+          color?: string | null
+          content: string
+          created_at?: string
+          created_by?: string | null
+          excerpt?: string | null
+          featured?: boolean
+          featured_image?: string | null
+          icon?: string | null
+          id?: string
+          meta_description?: string | null
+          meta_title?: string | null
+          published_at?: string | null
+          slug: string
+          status?: Database["public"]["Enums"]["content_status"]
+          title: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          author_id?: string
+          category_id?: string
+          color?: string | null
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          excerpt?: string | null
+          featured?: boolean
+          featured_image?: string | null
+          icon?: string | null
+          id?: string
+          meta_description?: string | null
+          meta_title?: string | null
+          published_at?: string | null
+          slug?: string
+          status?: Database["public"]["Enums"]["content_status"]
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blog_posts_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "blog_authors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "blog_posts_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "blog_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "blog_posts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "utilisateurs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "blog_posts_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "utilisateurs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      blog_tags: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          slug: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          slug: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          slug?: string
+        }
+        Relationships: []
       }
       categories: {
         Row: {
@@ -226,9 +524,152 @@ export type Database = {
           },
         ]
       }
+      doc_articles: {
+        Row: {
+          category_id: string
+          content: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          meta_description: string | null
+          meta_title: string | null
+          ordre: number
+          published_at: string | null
+          read_time: string | null
+          slug: string
+          status: Database["public"]["Enums"]["content_status"]
+          title: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          category_id: string
+          content: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          meta_description?: string | null
+          meta_title?: string | null
+          ordre?: number
+          published_at?: string | null
+          read_time?: string | null
+          slug: string
+          status?: Database["public"]["Enums"]["content_status"]
+          title: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          category_id?: string
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          meta_description?: string | null
+          meta_title?: string | null
+          ordre?: number
+          published_at?: string | null
+          read_time?: string | null
+          slug?: string
+          status?: Database["public"]["Enums"]["content_status"]
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "doc_articles_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "doc_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "doc_articles_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "utilisateurs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "doc_articles_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "utilisateurs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      doc_categories: {
+        Row: {
+          color: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          icon: string
+          id: string
+          ordre: number
+          published_at: string | null
+          slug: string
+          status: Database["public"]["Enums"]["content_status"]
+          title: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          icon?: string
+          id?: string
+          ordre?: number
+          published_at?: string | null
+          slug: string
+          status?: Database["public"]["Enums"]["content_status"]
+          title: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          icon?: string
+          id?: string
+          ordre?: number
+          published_at?: string | null
+          slug?: string
+          status?: Database["public"]["Enums"]["content_status"]
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "doc_categories_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "utilisateurs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "doc_categories_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "utilisateurs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       etablissements: {
         Row: {
           actions_a_logger: string[] | null
+          actionsALogger: Database["public"]["Enums"]["ActionAudit"][] | null
           adresse: string | null
           affichage_table: Database["public"]["Enums"]["AffichageTable"]
           afficher_tva_sur_ticket: boolean
@@ -260,6 +701,9 @@ export type Database = {
           methode_valuation_stock: Database["public"]["Enums"]["MethodeValuation"]
           mode_vente_defaut: Database["public"]["Enums"]["TypeVente"]
           modes_paiement_actifs: string[] | null
+          modesPaiementActifs:
+            | Database["public"]["Enums"]["ModePaiement"][]
+            | null
           montant_minimum_vente: number
           nif: string | null
           nom: string
@@ -279,6 +723,7 @@ export type Database = {
         }
         Insert: {
           actions_a_logger?: string[] | null
+          actionsALogger?: Database["public"]["Enums"]["ActionAudit"][] | null
           adresse?: string | null
           affichage_table?: Database["public"]["Enums"]["AffichageTable"]
           afficher_tva_sur_ticket?: boolean
@@ -310,6 +755,9 @@ export type Database = {
           methode_valuation_stock?: Database["public"]["Enums"]["MethodeValuation"]
           mode_vente_defaut?: Database["public"]["Enums"]["TypeVente"]
           modes_paiement_actifs?: string[] | null
+          modesPaiementActifs?:
+            | Database["public"]["Enums"]["ModePaiement"][]
+            | null
           montant_minimum_vente?: number
           nif?: string | null
           nom: string
@@ -329,6 +777,7 @@ export type Database = {
         }
         Update: {
           actions_a_logger?: string[] | null
+          actionsALogger?: Database["public"]["Enums"]["ActionAudit"][] | null
           adresse?: string | null
           affichage_table?: Database["public"]["Enums"]["AffichageTable"]
           afficher_tva_sur_ticket?: boolean
@@ -360,6 +809,9 @@ export type Database = {
           methode_valuation_stock?: Database["public"]["Enums"]["MethodeValuation"]
           mode_vente_defaut?: Database["public"]["Enums"]["TypeVente"]
           modes_paiement_actifs?: string[] | null
+          modesPaiementActifs?:
+            | Database["public"]["Enums"]["ModePaiement"][]
+            | null
           montant_minimum_vente?: number
           nif?: string | null
           nom?: string
@@ -721,6 +1173,104 @@ export type Database = {
         }
         Relationships: []
       }
+      parametres_facture: {
+        Row: {
+          afficher_detail_tva: boolean
+          afficher_infos_etablissement: boolean
+          afficher_logo: boolean
+          afficher_nif_rccm: boolean
+          afficher_qr_code: boolean
+          copies_facture_detaillee: number
+          copies_note_addition: number
+          copies_pro_forma: number
+          copies_ticket_simple: number
+          created_at: string
+          entete_facture_detaillee: string | null
+          entete_note_addition: string | null
+          entete_pro_forma: string | null
+          entete_ticket_simple: string | null
+          etablissement_id: string
+          id: string
+          options_facture_detaillee: Json | null
+          options_note_addition: Json | null
+          options_pro_forma: Json | null
+          options_ticket_simple: Json | null
+          pied_page_facture_detaillee: string | null
+          pied_page_note_addition: string | null
+          pied_page_pro_forma: string | null
+          pied_page_ticket_simple: string | null
+          style_separateur: Database["public"]["Enums"]["style_separateur"]
+          type_facture_defaut: Database["public"]["Enums"]["type_facture"]
+          updated_at: string
+        }
+        Insert: {
+          afficher_detail_tva?: boolean
+          afficher_infos_etablissement?: boolean
+          afficher_logo?: boolean
+          afficher_nif_rccm?: boolean
+          afficher_qr_code?: boolean
+          copies_facture_detaillee?: number
+          copies_note_addition?: number
+          copies_pro_forma?: number
+          copies_ticket_simple?: number
+          created_at?: string
+          entete_facture_detaillee?: string | null
+          entete_note_addition?: string | null
+          entete_pro_forma?: string | null
+          entete_ticket_simple?: string | null
+          etablissement_id: string
+          id?: string
+          options_facture_detaillee?: Json | null
+          options_note_addition?: Json | null
+          options_pro_forma?: Json | null
+          options_ticket_simple?: Json | null
+          pied_page_facture_detaillee?: string | null
+          pied_page_note_addition?: string | null
+          pied_page_pro_forma?: string | null
+          pied_page_ticket_simple?: string | null
+          style_separateur?: Database["public"]["Enums"]["style_separateur"]
+          type_facture_defaut?: Database["public"]["Enums"]["type_facture"]
+          updated_at?: string
+        }
+        Update: {
+          afficher_detail_tva?: boolean
+          afficher_infos_etablissement?: boolean
+          afficher_logo?: boolean
+          afficher_nif_rccm?: boolean
+          afficher_qr_code?: boolean
+          copies_facture_detaillee?: number
+          copies_note_addition?: number
+          copies_pro_forma?: number
+          copies_ticket_simple?: number
+          created_at?: string
+          entete_facture_detaillee?: string | null
+          entete_note_addition?: string | null
+          entete_pro_forma?: string | null
+          entete_ticket_simple?: string | null
+          etablissement_id?: string
+          id?: string
+          options_facture_detaillee?: Json | null
+          options_note_addition?: Json | null
+          options_pro_forma?: Json | null
+          options_ticket_simple?: Json | null
+          pied_page_facture_detaillee?: string | null
+          pied_page_note_addition?: string | null
+          pied_page_pro_forma?: string | null
+          pied_page_ticket_simple?: string | null
+          style_separateur?: Database["public"]["Enums"]["style_separateur"]
+          type_facture_defaut?: Database["public"]["Enums"]["type_facture"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "parametres_facture_etablissement_id_fkey"
+            columns: ["etablissement_id"]
+            isOneToOne: true
+            referencedRelation: "etablissements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       produits: {
         Row: {
           actif: boolean
@@ -900,7 +1450,7 @@ export type Database = {
           id?: string
           permissions?: Json
           role: Database["public"]["Enums"]["Role"]
-          updated_at?: string
+          updated_at: string
         }
         Update: {
           allowed_routes?: string[] | null
@@ -1385,33 +1935,33 @@ export type Database = {
     }
     Functions: {
       get_user_etablissement_id: { Args: never; Returns: string }
-      get_user_role: {
-        Args: never
-        Returns: Database["public"]["Enums"]["Role"]
-      }
+      get_user_id: { Args: never; Returns: string }
+      get_user_role: { Args: never; Returns: string }
       is_admin: { Args: never; Returns: boolean }
-      reset_application_data: {
-        Args: {
-          p_etablissement_id: string
-          p_current_user_id: string
-          p_options: {
-            ventes?: boolean
-            clients?: boolean
-            produits?: boolean
-            stocks?: boolean
-            tables?: boolean
-            imprimantes?: boolean
-            utilisateurs?: boolean
-            auditLogs?: boolean
+      is_admin_or_manager: { Args: never; Returns: boolean }
+      is_manager_or_above: { Args: never; Returns: boolean }
+      is_super_admin: { Args: never; Returns: boolean }
+      set_rls_context:
+        | {
+            Args: { p_etablissement_id: string; p_user_id: string }
+            Returns: undefined
           }
-        }
-        Returns: {
-          success: boolean
-          message: string
-          deletedCounts: Record<string, number>
-          timestamp: string
-        }
-      }
+        | {
+            Args: {
+              p_etablissement_id: string
+              p_role: string
+              p_user_id: string
+            }
+            Returns: undefined
+          }
+        | {
+            Args: {
+              p_etablissement_id: string
+              p_role: string
+              p_user_id: string
+            }
+            Returns: undefined
+          }
     }
     Enums: {
       ActionAudit:
@@ -1430,6 +1980,8 @@ export type Database = {
         | "CAPACITE"
         | "NOM_NUMERO"
         | "NUMERO_CAPACITE"
+      content_status: "DRAFT" | "PUBLISHED" | "ARCHIVED"
+      ContentStatus: "DRAFT" | "PUBLISHED" | "ARCHIVED"
       FormeTable: "RONDE" | "CARREE" | "RECTANGULAIRE"
       MethodeValuation: "FIFO" | "LIFO"
       ModePaiement:
@@ -1451,7 +2003,13 @@ export type Database = {
         | "ADDITION"
         | "A_NETTOYER"
       StatutVente: "EN_COURS" | "PAYEE" | "ANNULEE"
+      style_separateur: "LIGNE_PLEINE" | "TIRETS" | "ETOILES" | "EGAL" | "AUCUN"
       TauxTva: "STANDARD" | "REDUIT" | "EXONERE"
+      type_facture:
+        | "TICKET_SIMPLE"
+        | "FACTURE_DETAILLEE"
+        | "PRO_FORMA"
+        | "NOTE_ADDITION"
       TypeConnexion: "USB" | "RESEAU" | "SERIE" | "BLUETOOTH"
       TypeImprimante: "TICKET" | "CUISINE" | "BAR"
       TypeMouvement: "ENTREE" | "SORTIE" | "AJUSTEMENT" | "PERTE" | "INVENTAIRE"
@@ -1608,6 +2166,8 @@ export const Constants = {
         "NOM_NUMERO",
         "NUMERO_CAPACITE",
       ],
+      content_status: ["DRAFT", "PUBLISHED", "ARCHIVED"],
+      ContentStatus: ["DRAFT", "PUBLISHED", "ARCHIVED"],
       FormeTable: ["RONDE", "CARREE", "RECTANGULAIRE"],
       MethodeValuation: ["FIFO", "LIFO"],
       ModePaiement: [
@@ -1631,7 +2191,14 @@ export const Constants = {
         "A_NETTOYER",
       ],
       StatutVente: ["EN_COURS", "PAYEE", "ANNULEE"],
+      style_separateur: ["LIGNE_PLEINE", "TIRETS", "ETOILES", "EGAL", "AUCUN"],
       TauxTva: ["STANDARD", "REDUIT", "EXONERE"],
+      type_facture: [
+        "TICKET_SIMPLE",
+        "FACTURE_DETAILLEE",
+        "PRO_FORMA",
+        "NOTE_ADDITION",
+      ],
       TypeConnexion: ["USB", "RESEAU", "SERIE", "BLUETOOTH"],
       TypeImprimante: ["TICKET", "CUISINE", "BAR"],
       TypeMouvement: ["ENTREE", "SORTIE", "AJUSTEMENT", "PERTE", "INVENTAIRE"],

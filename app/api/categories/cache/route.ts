@@ -6,9 +6,15 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/db";
 import { getEtablissementId } from "@/lib/etablissement";
+import { getSession } from "@/lib/auth/session";
 
 export async function GET() {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: "Non authentifie" }, { status: 401 });
+    }
+
     const etablissementId = await getEtablissementId();
     const supabase = await createClient();
 

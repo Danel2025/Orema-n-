@@ -257,6 +257,7 @@ export async function getAuditLogs(filters: {
   try {
     // Verifier les permissions
     const session = await requireAuth()
+    if (!session.etablissementId) return { success: false, error: "Aucun établissement associé" }
     requirePermission(session.role, 'audit:lire')
 
     const supabase = createServiceClient()
@@ -339,6 +340,7 @@ export async function exportAuditLogs(filters: {
   try {
     // Verifier les permissions
     const session = await requireAuth()
+    if (!session.etablissementId) return { success: false, error: "Aucun établissement associé" }
     requirePermission(session.role, 'audit:exporter')
 
     const supabase = createServiceClient()
@@ -404,6 +406,7 @@ export async function getAuditStats(periode: 'jour' | 'semaine' | 'mois' = 'jour
 > {
   try {
     const session = await requireAuth()
+    if (!session.etablissementId) return { success: false, error: "Aucun établissement associé" }
     requirePermission(session.role, 'audit:lire')
 
     const supabase = createServiceClient()

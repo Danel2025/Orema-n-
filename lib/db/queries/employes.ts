@@ -16,6 +16,7 @@ import {
   createPaginatedResult,
   getErrorMessage,
 } from '../utils'
+import { sanitizeSearchTerm } from '@/lib/utils/sanitize'
 
 /**
  * Récupère tous les employés d'un établissement
@@ -44,9 +45,12 @@ export async function getEmployes(
   }
 
   if (options?.search) {
-    query = query.or(
-      `nom.ilike.%${options.search}%,prenom.ilike.%${options.search}%,email.ilike.%${options.search}%`
-    )
+    const cleanSearch = sanitizeSearchTerm(options.search)
+    if (cleanSearch) {
+      query = query.or(
+        `nom.ilike.%${cleanSearch}%,prenom.ilike.%${cleanSearch}%,email.ilike.%${cleanSearch}%`
+      )
+    }
   }
 
   const { data, error } = await query
@@ -93,9 +97,12 @@ export async function getEmployesPaginated(
   }
 
   if (options?.search) {
-    query = query.or(
-      `nom.ilike.%${options.search}%,prenom.ilike.%${options.search}%,email.ilike.%${options.search}%`
-    )
+    const cleanSearch = sanitizeSearchTerm(options.search)
+    if (cleanSearch) {
+      query = query.or(
+        `nom.ilike.%${cleanSearch}%,prenom.ilike.%${cleanSearch}%,email.ilike.%${cleanSearch}%`
+      )
+    }
   }
 
   const { data, error, count } = await query

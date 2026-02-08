@@ -21,6 +21,7 @@ import {
   serializePrices,
   PRICE_FIELDS,
 } from '../utils'
+import { sanitizeSearchTerm } from '@/lib/utils/sanitize'
 
 const PRODUIT_PRICE_FIELDS = PRICE_FIELDS.produits
 const SUPPLEMENT_PRICE_FIELDS = PRICE_FIELDS.supplements_produits
@@ -78,9 +79,12 @@ export async function getProduits(
   }
 
   if (options?.search) {
-    query = query.or(
-      `nom.ilike.%${options.search}%,code_barre.ilike.%${options.search}%,description.ilike.%${options.search}%`
-    )
+    const cleanSearch = sanitizeSearchTerm(options.search)
+    if (cleanSearch) {
+      query = query.or(
+        `nom.ilike.%${cleanSearch}%,code_barre.ilike.%${cleanSearch}%,description.ilike.%${cleanSearch}%`
+      )
+    }
   }
 
   const { data, error } = await query
@@ -136,9 +140,12 @@ export async function getProduitsPaginated(
   }
 
   if (options?.search) {
-    query = query.or(
-      `nom.ilike.%${options.search}%,code_barre.ilike.%${options.search}%,description.ilike.%${options.search}%`
-    )
+    const cleanSearch = sanitizeSearchTerm(options.search)
+    if (cleanSearch) {
+      query = query.or(
+        `nom.ilike.%${cleanSearch}%,code_barre.ilike.%${cleanSearch}%,description.ilike.%${cleanSearch}%`
+      )
+    }
   }
 
   const { data, error, count } = await query

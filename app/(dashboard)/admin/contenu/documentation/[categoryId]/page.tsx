@@ -36,6 +36,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
 import { toast } from "sonner";
 import * as LucideIcons from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import {
   getDocCategoryById,
   getDocArticles,
@@ -47,8 +48,6 @@ import {
   contentStatusColors,
   type ContentStatus,
 } from "@/schemas/content.schema";
-
-type LucideIconComponent = React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
 
 interface DocArticle {
   id: string;
@@ -158,7 +157,7 @@ export default function CategoryDetailPage({
     return null;
   }
 
-  const CategoryIcon = (LucideIcons as Record<string, LucideIconComponent>)[category.icon] || BookOpen;
+  const CategoryIcon = (LucideIcons as unknown as Record<string, LucideIcon>)[category.icon] || BookOpen;
   const statusColor = contentStatusColors[category.status];
 
   return (

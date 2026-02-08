@@ -3,6 +3,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { getSession } from "@/lib/auth/session";
 
 interface TestConnectionBody {
   typeConnexion: "USB" | "RESEAU" | "SERIE" | "BLUETOOTH";
@@ -13,6 +14,11 @@ interface TestConnectionBody {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ success: false, error: "Non authentifie" }, { status: 401 });
+    }
+
     const body = (await request.json()) as TestConnectionBody;
     const { typeConnexion, adresseIp, port, pathUsb } = body;
 

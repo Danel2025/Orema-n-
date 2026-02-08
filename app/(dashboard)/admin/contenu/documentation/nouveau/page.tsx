@@ -32,8 +32,7 @@ import { docCategorySchema, type DocCategoryFormData, generateSlug } from "@/sch
 import { createDocCategory } from "@/actions/admin/documentation";
 import { IconPicker, ColorPicker, StatusSelect } from "@/components/admin/content";
 import * as LucideIcons from "lucide-react";
-
-type LucideIconComponent = React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
+import type { LucideIcon } from "lucide-react";
 
 export default function NouvelleCategoriePage() {
   const router = useRouter();
@@ -46,7 +45,7 @@ export default function NouvelleCategoriePage() {
     setValue,
     formState: { errors },
   } = useForm<DocCategoryFormData>({
-    resolver: zodResolver(docCategorySchema),
+    resolver: zodResolver(docCategorySchema) as never,
     defaultValues: {
       slug: "",
       title: "",
@@ -59,7 +58,7 @@ export default function NouvelleCategoriePage() {
   });
 
   const watchedValues = watch();
-  const PreviewIcon = (LucideIcons as Record<string, LucideIconComponent>)[watchedValues.icon] || BookOpen;
+  const PreviewIcon = (LucideIcons as unknown as Record<string, LucideIcon>)[watchedValues.icon] || BookOpen;
 
   // Auto-generate slug from title
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -76,7 +75,7 @@ export default function NouvelleCategoriePage() {
       const result = await createDocCategory(data);
       if (result.success) {
         toast.success("Catégorie créée avec succès");
-        router.push(`/admin/contenu/documentation/${result.data.id}`);
+        router.push(`/admin/contenu/documentation/${result.data?.id}`);
       } else {
         toast.error(result.error || "Erreur lors de la création");
       }
@@ -110,7 +109,7 @@ export default function NouvelleCategoriePage() {
         </Flex>
       </motion.div>
 
-      <form onSubmit={handleSubmit(onSubmit)}>
+      <form onSubmit={handleSubmit(onSubmit as never)}>
         <Flex gap="6" direction={{ initial: "column", lg: "row" }}>
           {/* Form */}
           <motion.div

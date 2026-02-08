@@ -1,17 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
-import { existsSync } from "fs";
 import path from "path";
+import { randomUUID } from "crypto";
+import { getSession } from "@/lib/auth/session";
+import { sanitizeFolderName, isAllowedFileExtension } from "@/lib/utils/sanitize";
 
-// Types de fichiers autorisés
-const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+// Types de fichiers autorises (whitelist MIME)
+const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+
+// Dossiers autorises (whitelist stricte)
+const ALLOWED_FOLDERS = ["produits", "categories", "etablissements", "avatars"];
 
 export async function POST(request: NextRequest) {
   try {
+    // 1. Verification d'authentification
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: "Non authentifie" },
+        { status: 401 }
+      );
+    }
+
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
-    const folder = (formData.get("folder") as string) || "produits";
+    const rawFolder = (formData.get("folder") as string) || "produits";
 
     if (!file) {
       return NextResponse.json(
@@ -20,47 +34,70 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Vérifier le type de fichier
-    if (!ALLOWED_TYPES.includes(file.type)) {
-      return NextResponse.json(
-        { success: false, error: "Type de fichier non autorisé. Utilisez JPG, PNG, WebP ou GIF." },
-        { status: 400 }
-      );
-    }
-
-    // Vérifier la taille
-    if (file.size > MAX_SIZE) {
+    // 2. Verification de la taille du fichier
+    if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
         { success: false, error: "Fichier trop volumineux. Maximum 5MB." },
         { status: 400 }
       );
     }
 
-    // Créer le dossier si nécessaire
-    const uploadDir = path.join(process.cwd(), "public", "uploads", folder);
-    if (!existsSync(uploadDir)) {
-      await mkdir(uploadDir, { recursive: true });
+    // 3. Verification du type MIME (whitelist)
+    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+      return NextResponse.json(
+        { success: false, error: "Type de fichier non autorise. Utilisez JPG, PNG, WebP ou GIF." },
+        { status: 400 }
+      );
     }
 
-    // Générer un nom de fichier unique
-    const timestamp = Date.now();
-    const randomString = Math.random().toString(36).substring(2, 8);
-    const extension = file.name.split(".").pop() || "jpg";
-    const fileName = `${timestamp}-${randomString}.${extension}`;
+    // 4. Verification de l'extension du fichier (whitelist, defense en profondeur)
+    if (!isAllowedFileExtension(file.name)) {
+      return NextResponse.json(
+        { success: false, error: "Extension de fichier non autorisee" },
+        { status: 400 }
+      );
+    }
 
-    // Sauvegarder le fichier
+    // 5. Sanitisation et whitelist du dossier cible
+    const folder = sanitizeFolderName(rawFolder);
+    if (!ALLOWED_FOLDERS.includes(folder)) {
+      return NextResponse.json(
+        { success: false, error: "Dossier non autorise" },
+        { status: 400 }
+      );
+    }
+
+    // 6. Generation d'un nom de fichier securise (aucun input utilisateur dans le nom)
+    const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+    const safeFileName = `${Date.now()}-${randomUUID()}.${ext}`;
+
+    // 7. Construction securisee du chemin
+    const uploadsRoot = path.resolve(process.cwd(), "public", "uploads");
+    const uploadDir = path.join(uploadsRoot, folder);
+    const filePath = path.join(uploadDir, safeFileName);
+
+    // 8. Verification que le chemin final est bien dans le repertoire uploads
+    //    (defense en profondeur contre path traversal)
+    const resolvedFilePath = path.resolve(filePath);
+    if (!resolvedFilePath.startsWith(uploadsRoot)) {
+      return NextResponse.json(
+        { success: false, error: "Chemin invalide" },
+        { status: 400 }
+      );
+    }
+
+    // 9. Creation du dossier et ecriture du fichier
+    await mkdir(uploadDir, { recursive: true });
     const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    const filePath = path.join(uploadDir, fileName);
-    await writeFile(filePath, buffer);
+    await writeFile(filePath, Buffer.from(bytes));
 
-    // Retourner l'URL relative
-    const url = `/uploads/${folder}/${fileName}`;
+    // 10. Retourner l'URL relative
+    const url = `/uploads/${folder}/${safeFileName}`;
 
     return NextResponse.json({
       success: true,
       url,
-      fileName,
+      fileName: safeFileName,
     });
   } catch (error) {
     console.error("Erreur lors de l'upload:", error);

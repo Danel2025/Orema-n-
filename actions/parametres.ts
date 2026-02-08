@@ -919,10 +919,10 @@ export async function resetData(data: ResetDataOptions): Promise<ActionResult<Re
 
       if (produitIds.length > 0) {
         const { count: suppCount } = await supabase
-          .from("supplements_produit")
+          .from("supplements_produits")
           .delete({ count: "exact" })
           .in("produit_id", produitIds);
-        deletedCounts.supplements_produit = suppCount || 0;
+        deletedCounts.supplements_produits = suppCount || 0;
       }
 
       const { count: produitsCount } = await supabase
@@ -982,8 +982,9 @@ export async function resetData(data: ResetDataOptions): Promise<ActionResult<Re
     }
 
     // 5. Creer un log d'audit pour cette operation
+    // Note: RESET_DATA n'est pas dans l'enum ActionAudit, on utilise DELETE comme action d'audit
     await supabase.from("audit_logs").insert({
-      action: "RESET_DATA",
+      action: "DELETE",
       entite: "Systeme",
       entite_id: etablissementId,
       description: `Remise a zero des donnees: ${Object.entries(deletedCounts)

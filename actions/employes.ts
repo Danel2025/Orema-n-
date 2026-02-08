@@ -31,10 +31,18 @@ type ActionResult<T = void> = {
 }
 
 /**
- * Genere un code PIN aleatoire de 4 chiffres
+ * Genere un code PIN aleatoire de N chiffres de maniere cryptographiquement securisee.
+ * Utilise crypto.getRandomValues() (disponible nativement dans Node.js 19+ et l'environnement serveur Next.js)
+ * au lieu de Math.random() qui est previsible et non securise pour la generation de secrets.
  */
+function generateSecurePin(length: number = 4): string {
+  const array = new Uint32Array(1)
+  crypto.getRandomValues(array)
+  return (array[0] % Math.pow(10, length)).toString().padStart(length, '0')
+}
+
 export async function generateRandomPin(): Promise<string> {
-  return Math.floor(1000 + Math.random() * 9000).toString()
+  return generateSecurePin(4)
 }
 
 /**
@@ -58,6 +66,7 @@ export async function getEmployes(): Promise<
 > {
   try {
     const session = await requireAuth()
+    if (!session.etablissementId) return { success: false, error: "Aucun établissement associé" }
     const supabase = createServiceClient()
 
     const employes = await db.getEmployes(supabase, session.etablissementId)
@@ -159,6 +168,7 @@ export async function createEmploye(
   try {
     // Verifier les permissions (SUPER_ADMIN ou ADMIN)
     const session = await requireAnyRole(['SUPER_ADMIN', 'ADMIN'])
+    if (!session.etablissementId) return { success: false, error: "Aucun établissement associé" }
     const supabase = createServiceClient()
 
     // Valider les donnees
@@ -842,6 +852,7 @@ export async function getRoleAllowedRoutes(): Promise<
 > {
   try {
     const session = await requireAnyRole(['SUPER_ADMIN', 'ADMIN'])
+    if (!session.etablissementId) return { success: false, error: "Aucun établissement associé" }
     const { getAllRoleAllowedRoutes } = await import('@/lib/permissions-db')
     const config = await getAllRoleAllowedRoutes(session.etablissementId)
     return { success: true, data: config }
@@ -860,6 +871,7 @@ export async function saveRoleAllowedRoutes(input: {
 }): Promise<ActionResult> {
   try {
     const session = await requireAnyRole(['SUPER_ADMIN', 'ADMIN'])
+    if (!session.etablissementId) return { success: false, error: "Aucun établissement associé" }
     const supabase = createServiceClient()
 
     const { saveAllowedRoutesForRole } = await import('@/lib/permissions-db')

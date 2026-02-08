@@ -7,6 +7,7 @@
 
 import { NextResponse } from "next/server";
 import * as os from "os";
+import { getSession } from "@/lib/auth/session";
 
 const PRINTER_PORT = 9100;
 const SCAN_TIMEOUT = 500; // 500ms par IP
@@ -24,6 +25,17 @@ export async function POST(): Promise<NextResponse<ScanResult>> {
   const startTime = Date.now();
 
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ success: false, error: "Non authentifie" }, { status: 401 });
+    }
+
+    // Network scan is restricted to ADMIN, MANAGER, and SUPER_ADMIN roles
+    const allowedRoles = ["ADMIN", "MANAGER", "SUPER_ADMIN"];
+    if (!allowedRoles.includes(session.role)) {
+      return NextResponse.json({ success: false, error: "Acces non autorise" }, { status: 403 });
+    }
+
     // Obtenir les interfaces réseau
     const networkInfo = getLocalNetworkInfo();
 

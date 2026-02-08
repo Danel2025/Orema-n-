@@ -4,9 +4,44 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { createClient } from "@/lib/db";
 import { getEtablissementId } from "@/lib/etablissement";
 import { produitSchema } from "@/schemas/produit.schema";
+import { getSession } from "@/lib/auth/session";
+import { isValidId } from "@/lib/utils/sanitize";
+import type { Role } from "@/lib/db/types";
+
+/**
+ * Roles autorises a modifier les produits
+ */
+const PRODUCT_WRITE_ROLES: Role[] = ["SUPER_ADMIN", "ADMIN", "MANAGER"];
+
+/**
+ * Schema Zod strict pour le PATCH partiel de produits.
+ * .strict() rejette tout champ inconnu pour empecher
+ * l'injection de champs arbitraires dans la requete Supabase.
+ */
+const produitPatchSchema = z.object({
+  nom: z.string().min(2).max(100).optional(),
+  description: z.string().max(500).nullable().optional(),
+  code_barre: z.string().max(50).nullable().optional(),
+  image: z.string().max(500).nullable().optional(),
+  prix_vente: z.number().int().positive().optional(),
+  prix_achat: z.number().int().positive().nullable().optional(),
+  taux_tva: z.enum(["STANDARD", "REDUIT", "EXONERE"]).optional(),
+  categorie_id: z.string().optional(),
+  gerer_stock: z.boolean().optional(),
+  stock_actuel: z.number().int().nonnegative().nullable().optional(),
+  stock_min: z.number().int().nonnegative().nullable().optional(),
+  stock_max: z.number().int().nonnegative().nullable().optional(),
+  unite: z.string().max(20).nullable().optional(),
+  disponible_direct: z.boolean().optional(),
+  disponible_table: z.boolean().optional(),
+  disponible_livraison: z.boolean().optional(),
+  disponible_emporter: z.boolean().optional(),
+  actif: z.boolean().optional(),
+}).strict();
 
 function getTauxTvaEnum(taux: number): "STANDARD" | "REDUIT" | "EXONERE" {
   if (taux === 0) return "EXONERE";
@@ -149,11 +184,58 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // 1. Verification d'authentification
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: "Non authentifie" },
+        { status: 401 }
+      );
+    }
+
+    // 2. Verification du role (SUPER_ADMIN, ADMIN, MANAGER uniquement)
+    if (!PRODUCT_WRITE_ROLES.includes(session.role)) {
+      return NextResponse.json(
+        { success: false, error: "Permissions insuffisantes" },
+        { status: 403 }
+      );
+    }
+
     const etablissementId = await getEtablissementId();
     const { id } = await params;
+
+    // 3. Validation de l'ID (UUID ou CUID)
+    if (!isValidId(id)) {
+      return NextResponse.json(
+        { success: false, error: "Identifiant invalide" },
+        { status: 400 }
+      );
+    }
+
     const body = await request.json();
+
+    // 4. Validation stricte du body avec Zod (.strict() rejette les champs inconnus)
+    const validation = produitPatchSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json(
+        { success: false, error: "Donnees invalides", details: validation.error.issues },
+        { status: 400 }
+      );
+    }
+
+    const validatedData = validation.data;
+
+    // 5. Verifier que le body valide contient au moins un champ
+    if (Object.keys(validatedData).length === 0) {
+      return NextResponse.json(
+        { success: false, error: "Aucun champ a mettre a jour" },
+        { status: 400 }
+      );
+    }
+
     const supabase = await createClient();
 
+    // 6. Verifier que le produit existe et appartient a l'etablissement
     const { data: existing } = await supabase
       .from("produits")
       .select("id")
@@ -162,12 +244,13 @@ export async function PATCH(
       .single();
 
     if (!existing) {
-      return NextResponse.json({ success: false, error: "Produit non trouvé" }, { status: 404 });
+      return NextResponse.json({ success: false, error: "Produit non trouve" }, { status: 404 });
     }
 
+    // 7. Mise a jour avec les donnees validees uniquement
     const { data: produit, error } = await supabase
       .from("produits")
-      .update(body)
+      .update({ ...validatedData, updated_at: new Date().toISOString() })
       .eq("id", id)
       .select(`*, categories(id, nom, couleur, icone)`)
       .single();
@@ -178,7 +261,7 @@ export async function PATCH(
   } catch (error) {
     console.error("PATCH /api/produits/[id] error:", error);
     return NextResponse.json(
-      { success: false, error: "Erreur lors de la mise à jour du produit" },
+      { success: false, error: "Erreur lors de la mise a jour du produit" },
       { status: 500 }
     );
   }

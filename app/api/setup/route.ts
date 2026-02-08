@@ -3,12 +3,23 @@
  * Migré vers Supabase
  */
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/db'
 import { hashPassword, hashPin } from '@/lib/auth/password'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // Disable in production unless SETUP_TOKEN is provided
+    if (process.env.NODE_ENV === 'production') {
+      const setupToken = request.headers.get('x-setup-token')
+      if (!setupToken || setupToken !== process.env.SETUP_TOKEN) {
+        return NextResponse.json(
+          { error: 'Endpoint desactive en production' },
+          { status: 403 }
+        )
+      }
+    }
+
     const supabase = await createClient()
 
     // Vérifier si des données existent déjà
@@ -29,10 +40,7 @@ export async function GET() {
       if (existingAdmin) {
         return NextResponse.json({
           success: true,
-          message: 'Les données de démonstration existent déjà',
-          etablissement: { id: existingEtablissement.id, nom: existingEtablissement.nom },
-          utilisateur: { email: existingAdmin.email, nom: existingAdmin.nom, prenom: existingAdmin.prenom },
-          credentials: { note: 'Utilisateur existant - mot de passe non affiché' }
+          message: 'Les donnees de demonstration existent deja',
         })
       }
     }
@@ -114,18 +122,19 @@ export async function GET() {
       { numero: 'T5', capacite: 8, forme: 'RECTANGULAIRE', position_x: 250, position_y: 250, largeur: 150, hauteur: 80, etablissement_id: etablissement.id },
     ])
 
+    // Log credentials only in development
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('Setup credentials:', { email: 'admin@orema.ga', pin: '****' })
+    }
+
     return NextResponse.json({
       success: true,
-      message: 'Données de démonstration créées avec succès!',
-      etablissement: { id: etablissement.id, nom: etablissement.nom },
-      utilisateur: { email: utilisateur.email, nom: utilisateur.nom, prenom: utilisateur.prenom, role: utilisateur.role },
-      credentials: { email: 'admin@orema.ga', password: 'Admin123!', pin: '1234' },
-      stats: { categories: 4, produits: 12, tables: 5 }
+      message: 'Setup termine. Consultez les logs serveur pour les credentials initiales.',
     })
   } catch (error) {
-    console.error('[Setup] Erreur:', error)
+    console.error('[Setup] Erreur:', error instanceof Error ? error.message : 'unknown')
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Erreur inconnue' },
+      { success: false, error: 'Erreur lors du setup' },
       { status: 500 }
     )
   }

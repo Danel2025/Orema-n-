@@ -41,6 +41,7 @@ import Link from "next/link";
 import { motion } from "motion/react";
 import { toast } from "sonner";
 import * as LucideIcons from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import {
   getBlogPosts,
   getBlogCategories,
@@ -54,8 +55,6 @@ import {
   contentStatusColors,
   type ContentStatus,
 } from "@/schemas/content.schema";
-
-type LucideIconComponent = React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
 
 interface BlogPost {
   id: string;
@@ -164,7 +163,7 @@ export default function BlogPage() {
     try {
       const result = await toggleBlogPostFeatured(id);
       if (result.success) {
-        toast.success(result.data.featured ? "Article mis en avant" : "Article retiré de la une");
+        toast.success(result.data?.featured ? "Article mis en avant" : "Article retiré de la une");
         loadData();
       } else {
         toast.error(result.error || "Erreur lors de la mise à jour");
@@ -379,7 +378,7 @@ export default function BlogPage() {
 
               <Table.Body>
                 {posts.map((post, index) => {
-                  const PostIcon = (LucideIcons as Record<string, LucideIconComponent>)[post.icon] || Newspaper;
+                  const PostIcon = (LucideIcons as unknown as Record<string, LucideIcon>)[post.icon] || Newspaper;
                   const statusColor = contentStatusColors[post.status];
 
                   return (

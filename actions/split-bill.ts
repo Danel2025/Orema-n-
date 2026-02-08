@@ -72,7 +72,7 @@ function getTauxTvaPercent(taux: string): number {
 }
 
 async function generateNumeroTicket(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: ReturnType<typeof createServiceClient>,
   etablissementId: string
 ): Promise<string> {
   const today = new Date();

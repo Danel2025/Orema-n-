@@ -2,8 +2,16 @@ import type { NextConfig } from "next";
 
 /**
  * Headers de securite pour l'application
- * @security Protection contre diverses attaques web
+ * @security Protection contre diverses attaques web (OWASP Top 10 aligned)
  */
+const isDev = process.env.NODE_ENV === "development";
+
+// CSP conditionnel : 'unsafe-eval' uniquement en dev (necessaire pour Next.js hot reload)
+// En production, seul 'unsafe-inline' est conserve (necessaire pour Radix UI Themes)
+const scriptSrc = isDev
+  ? "'self' 'unsafe-eval' 'unsafe-inline' https://storage.googleapis.com"
+  : "'self' 'unsafe-inline' https://storage.googleapis.com";
+
 const securityHeaders = [
   // Prefetch DNS pour ameliorer les performances
   {
@@ -15,10 +23,10 @@ const securityHeaders = [
     key: "Strict-Transport-Security",
     value: "max-age=63072000; includeSubDomains; preload",
   },
-  // Empeche le clickjacking en interdisant l'affichage dans des iframes
+  // Empeche le clickjacking en interdisant l'affichage dans des iframes (DENY plus strict que SAMEORIGIN)
   {
     key: "X-Frame-Options",
-    value: "SAMEORIGIN",
+    value: "DENY",
   },
   // Empeche le sniffing MIME (protection XSS)
   {
@@ -31,21 +39,23 @@ const securityHeaders = [
     value: "strict-origin-when-cross-origin",
   },
   // Content Security Policy - Protection XSS et injection
-  // Note: 'unsafe-inline' et 'unsafe-eval' necessaires pour Next.js dev mode
-  // A restreindre davantage en production si possible
+  // 'unsafe-eval' retire en production (garde en dev pour Next.js hot reload)
+  // 'unsafe-inline' conserve pour style-src (necessaire pour Radix UI Themes)
   {
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
       // Autoriser le CDN Workbox pour le Service Worker
-      "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://storage.googleapis.com",
+      `script-src ${scriptSrc}`,
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
-      "img-src 'self' data: blob: https:",
+      // img-src restreint aux domaines Supabase specifiques (pas https: generique)
+      "img-src 'self' data: blob: https://*.supabase.co",
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
       // Permettre au Service Worker de charger Workbox
       "worker-src 'self' blob:",
-      "frame-ancestors 'self'",
+      // frame-ancestors 'none' plus strict que X-Frame-Options DENY (defense en profondeur)
+      "frame-ancestors 'none'",
       "form-action 'self'",
       "base-uri 'self'",
       "upgrade-insecure-requests",

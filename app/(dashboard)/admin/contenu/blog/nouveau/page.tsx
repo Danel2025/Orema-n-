@@ -100,7 +100,7 @@ export default function NouveauBlogPage() {
     control,
     formState: { errors },
   } = useForm<BlogPostFormData>({
-    resolver: zodResolver(blogPostSchema),
+    resolver: zodResolver(blogPostSchema) as never,
     defaultValues: {
       slug: "",
       title: "",
@@ -283,7 +283,7 @@ export default function NouveauBlogPage() {
         </Flex>
       </motion.div>
 
-      <form onSubmit={handleSubmit(onSubmit)}>
+      <form onSubmit={handleSubmit(onSubmit as never)}>
         <Flex gap="6" direction={{ initial: "column", lg: "row" }}>
           {/* Main Form */}
           <motion.div

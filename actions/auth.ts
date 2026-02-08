@@ -9,12 +9,27 @@ import { redirect } from 'next/navigation'
 import { createServiceClient } from '@/lib/db'
 import { hashPassword, hashPin, verifyPassword, verifyPin, createSession, setSessionCookie, deleteSessionCookie, getLegacySession, requireAuth } from '@/lib/auth'
 import { loginSchema, pinLoginSchema, createUserSchema, updatePasswordSchema, updatePinSchema, type LoginInput, type PinLoginInput, type CreateUserInput, type UpdatePasswordInput, type UpdatePinInput } from '@/schemas/auth'
+import { checkLockout, recordFailedAttempt, resetAttempts } from '@/lib/auth/login-lockout'
+import { rateLimit, RATE_LIMITS } from '@/lib/rate-limit'
 
 type ActionResult<T = void> = { success: boolean; error?: string; data?: T }
 
 export async function login(input: LoginInput): Promise<ActionResult> {
   try {
     const validated = loginSchema.parse(input)
+
+    // Rate limiting
+    const rateLimitResult = rateLimit(validated.email, RATE_LIMITS.LOGIN)
+    if (!rateLimitResult.success) {
+      return { success: false, error: 'Trop de tentatives. Veuillez reessayer plus tard.' }
+    }
+
+    // Lockout check
+    const lockout = checkLockout(validated.email)
+    if (lockout.locked) {
+      return { success: false, error: 'Compte temporairement verrouille suite a trop de tentatives. Veuillez reessayer dans quelques minutes.' }
+    }
+
     const supabase = createServiceClient()
 
     const { data: user } = await supabase
@@ -23,11 +38,20 @@ export async function login(input: LoginInput): Promise<ActionResult> {
       .eq('email', validated.email)
       .single()
 
-    if (!user?.actif) return { success: false, error: 'Email ou mot de passe incorrect' }
+    if (!user?.actif) {
+      recordFailedAttempt(validated.email)
+      return { success: false, error: 'Email ou mot de passe incorrect' }
+    }
     if (!user.password) return { success: false, error: 'Cet utilisateur doit se connecter avec un PIN' }
 
     const isPasswordValid = await verifyPassword(validated.password, user.password)
-    if (!isPasswordValid) return { success: false, error: 'Email ou mot de passe incorrect' }
+    if (!isPasswordValid) {
+      recordFailedAttempt(validated.email)
+      return { success: false, error: 'Email ou mot de passe incorrect' }
+    }
+
+    // Login reussi : reset les tentatives
+    resetAttempts(validated.email)
 
     const sessionPayload = { userId: user.id, email: user.email, role: user.role, etablissementId: user.etablissement_id, nom: user.nom, prenom: user.prenom }
     const token = await createSession(sessionPayload)
@@ -40,8 +64,8 @@ export async function login(input: LoginInput): Promise<ActionResult> {
     })
 
     return { success: true }
-  } catch (error) {
-    console.error('Erreur connexion:', error)
+  } catch {
+    console.error('Login failed')
     return { success: false, error: 'Une erreur est survenue lors de la connexion' }
   }
 }
@@ -49,6 +73,13 @@ export async function login(input: LoginInput): Promise<ActionResult> {
 export async function loginWithPin(input: PinLoginInput): Promise<ActionResult> {
   try {
     const validated = pinLoginSchema.parse(input)
+
+    // Lockout check (PIN config: 3 tentatives / 5 min)
+    const lockout = checkLockout(validated.email, true)
+    if (lockout.locked) {
+      return { success: false, error: 'Compte temporairement verrouille suite a trop de tentatives PIN. Veuillez reessayer dans quelques minutes.' }
+    }
+
     const supabase = createServiceClient()
 
     const { data: user } = await supabase
@@ -57,11 +88,20 @@ export async function loginWithPin(input: PinLoginInput): Promise<ActionResult> 
       .eq('email', validated.email)
       .single()
 
-    if (!user?.actif) return { success: false, error: 'Email ou PIN incorrect' }
-    if (!user.pin_code) return { success: false, error: 'Aucun PIN configuré pour cet utilisateur' }
+    if (!user?.actif) {
+      recordFailedAttempt(validated.email, true)
+      return { success: false, error: 'Email ou PIN incorrect' }
+    }
+    if (!user.pin_code) return { success: false, error: 'Aucun PIN configure pour cet utilisateur' }
 
     const isPinValid = await verifyPin(validated.pin, user.pin_code)
-    if (!isPinValid) return { success: false, error: 'Email ou PIN incorrect' }
+    if (!isPinValid) {
+      recordFailedAttempt(validated.email, true)
+      return { success: false, error: 'Email ou PIN incorrect' }
+    }
+
+    // Login PIN reussi : reset les tentatives
+    resetAttempts(validated.email, true)
 
     const sessionPayload = { userId: user.id, email: user.email, role: user.role, etablissementId: user.etablissement_id, nom: user.nom, prenom: user.prenom, isPinAuth: true }
     const token = await createSession(sessionPayload)
@@ -74,8 +114,8 @@ export async function loginWithPin(input: PinLoginInput): Promise<ActionResult> 
     })
 
     return { success: true }
-  } catch (error) {
-    console.error('Erreur connexion PIN:', error)
+  } catch {
+    console.error('PIN login failed')
     return { success: false, error: 'Une erreur est survenue lors de la connexion' }
   }
 }
@@ -92,8 +132,8 @@ export async function logout(): Promise<void> {
       })
     }
     await deleteSessionCookie()
-  } catch (error) {
-    console.error('Erreur déconnexion:', error)
+  } catch {
+    console.error('Logout failed')
   }
   redirect('/login')
 }
@@ -101,9 +141,20 @@ export async function logout(): Promise<void> {
 export async function createUser(input: CreateUserInput): Promise<ActionResult<string>> {
   try {
     const session = await requireAuth()
+    if (!session.etablissementId) return { success: false, error: "Aucun etablissement associe" }
     if (!['SUPER_ADMIN', 'ADMIN'].includes(session.role)) return { success: false, error: 'Permissions insuffisantes' }
 
     const validated = createUserSchema.parse(input)
+
+    // Prevent privilege escalation: un utilisateur ne peut pas creer un compte
+    // avec un role egal ou superieur au sien
+    const ROLE_HIERARCHY: readonly string[] = ['SERVEUR', 'CAISSIER', 'MANAGER', 'ADMIN', 'SUPER_ADMIN'] as const
+    const creatorLevel = ROLE_HIERARCHY.indexOf(session.role)
+    const targetLevel = ROLE_HIERARCHY.indexOf(validated.role)
+    if (targetLevel >= creatorLevel) {
+      return { success: false, error: 'Vous ne pouvez pas creer un utilisateur avec un role egal ou superieur au votre.' }
+    }
+
     const supabase = createServiceClient()
 
     const { data: existingUser } = await supabase.from('utilisateurs').select('id').eq('email', validated.email).single()
@@ -126,9 +177,9 @@ export async function createUser(input: CreateUserInput): Promise<ActionResult<s
     })
 
     return { success: true, data: user.id }
-  } catch (error) {
-    console.error('Erreur création utilisateur:', error)
-    return { success: false, error: "Une erreur est survenue lors de la création de l'utilisateur" }
+  } catch {
+    console.error('User creation failed')
+    return { success: false, error: "Une erreur est survenue lors de la creation de l'utilisateur" }
   }
 }
 
@@ -157,22 +208,24 @@ export async function updatePassword(input: UpdatePasswordInput): Promise<Action
     })
 
     if (updateError) {
-      console.error('[updatePassword] Erreur Supabase Auth:', updateError)
-      return { success: false, error: updateError.message || 'Erreur lors de la mise à jour du mot de passe' }
+      console.error('Password update failed')
+      return { success: false, error: 'Erreur lors de la mise a jour du mot de passe' }
     }
 
-    // Log d'audit
-    const supabase = createServiceClient()
-    await supabase.from('audit_logs').insert({
-      action: 'UPDATE', entite: 'Utilisateur', entite_id: session.userId,
-      description: 'Mot de passe modifié',
-      utilisateur_id: session.userId,
-      etablissement_id: session.etablissementId || null,
-    })
+    // Log d'audit (seulement si un établissement est associé)
+    if (session.etablissementId) {
+      const supabase = createServiceClient()
+      await supabase.from('audit_logs').insert({
+        action: 'UPDATE', entite: 'Utilisateur', entite_id: session.userId,
+        description: 'Mot de passe modifié',
+        utilisateur_id: session.userId,
+        etablissement_id: session.etablissementId,
+      })
+    }
 
     return { success: true }
-  } catch (error) {
-    console.error('Erreur mise à jour mot de passe:', error)
+  } catch {
+    console.error('Password update failed')
     return { success: false, error: 'Une erreur est survenue' }
   }
 }
@@ -208,17 +261,19 @@ export async function updatePin(input: UpdatePinInput): Promise<ActionResult> {
     const hashedPin = await hashPin(validated.newPin)
     await supabase.from('utilisateurs').update({ pin_code: hashedPin }).eq('id', session.userId)
 
-    // Log d'audit (etablissement_id peut être null pour SUPER_ADMIN)
-    await supabase.from('audit_logs').insert({
-      action: 'UPDATE', entite: 'Utilisateur', entite_id: session.userId,
-      description: user.pin_code ? 'PIN modifié' : 'PIN créé',
-      utilisateur_id: session.userId,
-      etablissement_id: session.etablissementId || null,
-    })
+    // Log d'audit (seulement si un établissement est associé)
+    if (session.etablissementId) {
+      await supabase.from('audit_logs').insert({
+        action: 'UPDATE', entite: 'Utilisateur', entite_id: session.userId,
+        description: user.pin_code ? 'PIN modifié' : 'PIN créé',
+        utilisateur_id: session.userId,
+        etablissement_id: session.etablissementId,
+      })
+    }
 
     return { success: true }
-  } catch (error) {
-    console.error('Erreur mise à jour PIN:', error)
+  } catch {
+    console.error('PIN update failed')
     return { success: false, error: 'Une erreur est survenue' }
   }
 }
@@ -226,18 +281,15 @@ export async function updatePin(input: UpdatePinInput): Promise<ActionResult> {
 export async function getCurrentUser() {
   try {
     const session = await getLegacySession()
-    console.log('[getCurrentUser] Session:', session ? `userId=${session.userId}` : 'null')
     if (!session) return null
 
-    // Utiliser le service client pour bypasser RLS car la session est déjà validée
+    // Utiliser le service client pour bypasser RLS car la session est deja validee
     const supabase = createServiceClient()
-    const { data: user, error } = await supabase
+    const { data: user } = await supabase
       .from('utilisateurs')
       .select('id, email, nom, prenom, role, actif, etablissement_id, etablissements(id, nom, logo)')
       .eq('id', session.userId)
       .single()
-
-    console.log('[getCurrentUser] User query:', user ? `id=${user.id}, role=${user.role}` : 'null', error ? `error: ${error.message}` : '')
 
     if (!user?.actif) return null
 
@@ -246,8 +298,8 @@ export async function getCurrentUser() {
       role: user.role, actif: user.actif, etablissementId: user.etablissement_id,
       etablissement: user.etablissements, isPinAuth: session.isPinAuth,
     }
-  } catch (error) {
-    console.error('Erreur récupération utilisateur:', error)
+  } catch {
+    console.error('Failed to get current user')
     return null
   }
 }

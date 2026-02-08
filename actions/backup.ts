@@ -1,11 +1,8 @@
-// @ts-nocheck
-// TODO: Ajouter la table 'backups' aux types Supabase pour activer la vérification TypeScript
 "use server";
 
 /**
  * Server Actions pour le systeme de sauvegarde
- * Note: Les types Supabase peuvent ne pas reconnaitre la table 'backups'
- * si les types n'ont pas ete regeneres. On utilise des casts explicites.
+ * La table 'backups' est maintenant dans les types Supabase generes.
  */
 
 import { revalidatePath } from "next/cache";
@@ -19,10 +16,6 @@ import {
   type BackupRecord,
 } from "@/schemas/backup.schema";
 import type { ZodSchema } from "zod";
-
-// Type pour contourner les types Supabase non mis a jour
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type SupabaseAny = any;
 
 // ============================================================================
 // HELPERS
@@ -83,14 +76,14 @@ export async function createBackup(input: CreateBackupInput): Promise<ActionResu
     const supabase = createServiceClient();
 
     // 3. Creer l'enregistrement de backup avec statut "in_progress"
-    const { data: backup, error: createError } = await (supabase as SupabaseAny)
+    const { data: backup, error: createError } = await supabase
       .from("backups")
       .insert({
         etablissement_id: etablissementId,
         nom: validation.data.nom,
         type: validation.data.type,
         format: validation.data.format,
-        categories: validation.data.categories,
+        categories: validation.data.categories as unknown as import("@/types/supabase").Json,
         status: "in_progress",
         created_by: currentUser.userId,
       })
@@ -117,9 +110,9 @@ export async function createBackup(input: CreateBackupInput): Promise<ActionResu
       for (const table of tables) {
         try {
           const { data: tableData, error: tableError } = await supabase
-            .from(table)
+            .from(table as "ventes")
             .select("*")
-            .eq("etablissement_id", etablissementId);
+            .eq("etablissement_id" as never, etablissementId);
 
           if (!tableError && tableData) {
             data[table] = tableData;
@@ -164,7 +157,7 @@ export async function createBackup(input: CreateBackupInput): Promise<ActionResu
 
     if (uploadError) {
       // Mettre a jour le statut en "failed"
-      await (supabase as SupabaseAny)
+      await supabase
         .from("backups")
         .update({
           status: "failed",
@@ -236,25 +229,25 @@ export async function listBackups(): Promise<ActionResult<BackupRecord[]>> {
       throw error;
     }
 
-    // Transformer les donnees
+    // Transformer les donnees (cast depuis les types Supabase generiques vers BackupRecord)
     const backups: BackupRecord[] = (data || []).map((b) => ({
       id: b.id,
       etablissement_id: b.etablissement_id,
       nom: b.nom,
       description: b.description,
-      type: b.type,
-      format: b.format,
-      categories: b.categories || [],
+      type: b.type as BackupRecord["type"],
+      format: b.format as BackupRecord["format"],
+      categories: (b.categories as string[] | null) || [],
       storage_path: b.storage_path,
       file_size: b.file_size,
       record_count: b.record_count,
       checksum: b.checksum,
-      status: b.status,
+      status: b.status as BackupRecord["status"],
       error_message: b.error_message,
       created_by: b.created_by,
       created_at: b.created_at,
       completed_at: b.completed_at,
-      created_by_user: b.created_by_user,
+      created_by_user: b.created_by_user as BackupRecord["created_by_user"],
     }));
 
     return { success: true, data: backups };
@@ -407,9 +400,9 @@ export async function getBackupStats(): Promise<ActionResult<Record<string, numb
     for (const table of tablesToCount) {
       try {
         const { count, error } = await supabase
-          .from(table)
+          .from(table as "ventes")
           .select("*", { count: "exact", head: true })
-          .eq("etablissement_id", etablissementId);
+          .eq("etablissement_id" as never, etablissementId);
 
         if (!error) {
           counts[table] = count || 0;

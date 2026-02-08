@@ -107,7 +107,7 @@ export default function DocsPage() {
     async function loadCategories() {
       try {
         const data = await getPublishedDocCategories();
-        setCategories(data as DocCategory[]);
+        setCategories(data as unknown as DocCategory[]);
       } catch (error) {
         console.error("Erreur chargement catégories:", error);
       } finally {

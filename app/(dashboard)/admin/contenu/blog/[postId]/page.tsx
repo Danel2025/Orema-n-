@@ -117,7 +117,7 @@ export default function EditBlogPostPage({
     reset,
     formState: { errors, isDirty },
   } = useForm<BlogPostFormData>({
-    resolver: zodResolver(blogPostSchema),
+    resolver: zodResolver(blogPostSchema) as never,
     defaultValues: {
       slug: "",
       title: "",
@@ -168,8 +168,8 @@ export default function EditBlogPostPage({
           categoryId: postData.category_id,
           authorId: postData.author_id,
           featuredImage: postData.featured_image || "",
-          icon: postData.icon,
-          color: postData.color,
+          icon: postData.icon || "FileText",
+          color: postData.color || "orange",
           status: postData.status,
           featured: postData.featured,
           tags: postData.tags?.map((t: { id: string }) => t.id) || [],
@@ -292,7 +292,7 @@ export default function EditBlogPostPage({
         </Flex>
       </motion.div>
 
-      <form onSubmit={handleSubmit(onSubmit)}>
+      <form onSubmit={handleSubmit(onSubmit as never)}>
         <Flex gap="6" direction={{ initial: "column", lg: "row" }}>
           {/* Main Form */}
           <motion.div

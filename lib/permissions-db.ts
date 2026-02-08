@@ -48,7 +48,7 @@ export async function saveRolePermissions(role: Role, permissions: Permission[],
   if (existing) {
     await supabase.from('role_permissions').update({ permissions }).eq('id', existing.id)
   } else {
-    await supabase.from('role_permissions').insert({ role, etablissement_id: etablissementId, permissions })
+    await supabase.from('role_permissions').insert({ role, etablissement_id: etablissementId, permissions, updated_at: new Date().toISOString() })
   }
 }
 

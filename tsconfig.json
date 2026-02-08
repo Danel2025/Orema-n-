@@ -32,5 +32,5 @@
     "**/*.mts",
     "tests/**/*.ts"
   ],
-  "exclude": ["node_modules", "prisma/seed.ts", "scripts", "tests", "supabase/functions"]
+  "exclude": ["node_modules", "prisma/seed.ts", "scripts", "tests", "supabase/functions", "remotion-demo"]
 }

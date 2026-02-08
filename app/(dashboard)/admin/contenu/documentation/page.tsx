@@ -35,6 +35,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
 import { toast } from "sonner";
 import * as LucideIcons from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import {
   getDocCategories,
   deleteDocCategory,
@@ -45,8 +46,6 @@ import {
   contentStatusColors,
   type ContentStatus,
 } from "@/schemas/content.schema";
-
-type LucideIconComponent = React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
 
 interface DocCategory {
   id: string;
@@ -246,7 +245,7 @@ export default function DocumentationPage() {
       ) : (
         <Grid columns={{ initial: "1", md: "2" }} gap="4">
           {categories.map((category, index) => {
-            const Icon = (LucideIcons as Record<string, LucideIconComponent>)[category.icon] || BookOpen;
+            const Icon = (LucideIcons as unknown as Record<string, LucideIcon>)[category.icon] || BookOpen;
             const statusColor = contentStatusColors[category.status];
 
             return (
