@@ -1,114 +1,246 @@
-# Oréma N+ - Système de Caisse POS
+<div align="center">
 
-> Système de Point de Vente moderne conçu pour le marché gabonais et africain
+# Orema N+
 
-## 📋 Description
+**Systeme de Point de Vente moderne pour le marche gabonais et africain**
 
-**Oréma N+** ("le cœur" en langue locale) est un système de caisse (POS) complet et moderne, spécialement conçu pour les restaurants, brasseries, maquis, bars, et commerces du Gabon et d'Afrique.
+[![Next.js](https://img.shields.io/badge/Next.js-16.1-black?logo=next.js)](https://nextjs.org/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## 🚀 Démarrage rapide
+[Fonctionnalites](#fonctionnalites) &bull; [Stack technique](#stack-technique) &bull; [Installation](#installation) &bull; [Screenshots](#screenshots) &bull; [Architecture](#architecture)
 
-### Prérequis
+</div>
+
+---
+
+## A propos
+
+**Orema N+** (signifiant "le coeur" en langue locale) est un systeme de caisse (POS) complet concu pour les restaurants, brasseries, maquis, bars, fast-foods et commerces du Gabon et d'Afrique centrale.
+
+Le systeme prend en charge les specificites du marche local : devise FCFA (XAF), TVA gabonaise (18%), paiements Mobile Money (Airtel Money, Moov Money), et impression thermique ESC/POS.
+
+## Fonctionnalites
+
+### Module Caisse
+- Vente directe, service en salle, livraison, a emporter
+- Paiements multiples (especes, carte, Mobile Money, compte client, mixte)
+- Impression tickets thermiques et bons de cuisine
+- Mode hors-ligne avec synchronisation automatique
+
+### Gestion de salle
+- Plan de salle interactif avec drag & drop
+- Statut des tables en temps reel
+- Transfert de table et division d'addition
+- Zones configurables
+
+### Produits & Stocks
+- Catalogue avec categories, supplements et produits composites
+- Gestion des stocks avec deduction automatique
+- Import/export CSV
+- Support codes-barres
+
+### Rapports
+- Rapport Z (cloture de caisse)
+- Statistiques de ventes par periode
+- Analyse des produits les plus vendus et heures de pointe
+- Export PDF, Excel, CSV
+
+### Administration
+- Gestion des employes avec roles (Admin, Manager, Caissier, Serveur)
+- Permissions granulaires par role
+- Connexion rapide par code PIN
+- Journal d'audit des operations sensibles
+- Blog et documentation integres
+
+## Screenshots
+
+<div align="center">
+<table>
+<tr>
+<td align="center"><strong>Interface de caisse</strong></td>
+<td align="center"><strong>Commande en cours</strong></td>
+</tr>
+<tr>
+<td><img src="public/images/demo/01-caisse-vide.png" width="400" /></td>
+<td><img src="public/images/demo/02-commande-en-cours.png" width="400" /></td>
+</tr>
+<tr>
+<td align="center"><strong>Encaissement</strong></td>
+<td align="center"><strong>Rapports</strong></td>
+</tr>
+<tr>
+<td><img src="public/images/demo/03-encaissement.png" width="400" /></td>
+<td><img src="public/images/demo/05-rapports.png" width="400" /></td>
+</tr>
+<tr>
+<td align="center"><strong>Mode sombre</strong></td>
+<td align="center"><strong>Responsive tablet</strong></td>
+</tr>
+<tr>
+<td><img src="public/images/demo/07-caisse-dark-mode.png" width="400" /></td>
+<td><img src="public/images/demo/tablet-768.png" width="400" /></td>
+</tr>
+</table>
+</div>
+
+## Stack technique
+
+| Categorie | Technologies |
+|-----------|-------------|
+| **Framework** | Next.js 16 (App Router, Turbopack) |
+| **UI** | React 19, Radix UI Themes 3, Tailwind CSS 4 |
+| **Langage** | TypeScript 5 (strict) |
+| **Base de donnees** | PostgreSQL via Supabase |
+| **Authentification** | Supabase Auth + PIN codes (hashes) |
+| **Etat global** | Zustand 5 |
+| **Etat serveur** | TanStack Query 5 |
+| **Formulaires** | React Hook Form + Zod |
+| **Impression** | ESC/POS (USB, reseau, serie) |
+| **Tests** | Vitest (unitaires), Playwright (E2E) |
+
+## Installation
+
+### Prerequis
 
 - Node.js 20+
-- PostgreSQL 14+ (via pgAdmin4)
-- pnpm (ou npm/yarn)
+- pnpm 9+
+- Un projet [Supabase](https://supabase.com/) (gratuit)
 
-### Installation
+### Demarrage
 
 ```bash
-# 1. Installer les dépendances
+# Cloner le depot
+git clone https://github.com/Danel2025/Orema-n-.git
+cd Orema-n-
+
+# Installer les dependances
 pnpm install
 
-# 2. Configurer la base de données
-# Éditer .env avec vos informations PostgreSQL
+# Configurer les variables d'environnement
 cp .env.example .env
+# Editer .env avec vos cles Supabase
 
-# 3. Créer la base de données dans pgAdmin4
-# Nom: orema_nplus_dev
-
-# 4. Appliquer les migrations
-npx pnpm db:generate
-npx pnpm db:migrate
-npx pnpm db:seed
-
-# 5. Lancer le serveur
-npx pnpm dev
+# Lancer le serveur de developpement
+pnpm dev
 ```
 
 Ouvrir [http://localhost:3000](http://localhost:3000)
 
-### Identifiants par défaut
+### Variables d'environnement
 
-- Email: `admin@orema.ga`
-- Mot de passe: `demo`
-
-## 📜 Scripts
-
-```bash
-pnpm dev              # Serveur de développement
-pnpm build            # Build de production
-pnpm lint             # Linter le code
-pnpm format           # Formater le code
-
-# Base de données
-pnpm db:generate      # Générer le client Prisma
-pnpm db:migrate       # Appliquer les migrations
-pnpm db:seed          # Peupler avec des données de test
-pnpm db:studio        # Ouvrir Prisma Studio
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://votre-projet.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=votre-cle-anon
+SUPABASE_SERVICE_ROLE_KEY=votre-cle-service
+JWT_SECRET=votre-secret-jwt
 ```
 
-## 🛠️ Stack
+## Scripts
 
-- **Next.js 16** - Framework React fullstack
-- **React 19** - Bibliothèque UI
-- **TypeScript 5** - Typage statique
-- **Radix UI Themes 3** - Composants UI
-- **Tailwind CSS 4** - Framework CSS
-- **PostgreSQL + Prisma 7** - Base de données
-- **Zustand** - État global
-- **TanStack Query** - Cache et sync serveur
+```bash
+# Developpement
+pnpm dev                  # Serveur dev (Turbopack)
+pnpm build                # Build de production
+pnpm start                # Serveur de production
 
-## ✨ Fonctionnalités
+# Qualite de code
+pnpm lint                 # ESLint
+pnpm lint:fix             # Corriger automatiquement
+pnpm format               # Prettier
 
-- 🛒 Module Caisse (vente directe, table, livraison, emporter)
-- 🍽️ Gestion des tables avec plan de salle
-- 📦 Gestion produits et stocks
-- 💰 Paiements multiples (espèces, cartes, Mobile Money)
-- 🖨️ Impression tickets (ESC/POS)
-- 📊 Rapports et statistiques
-- 👥 Multi-utilisateurs avec rôles
-- 🌙 Mode clair/sombre
-- 📴 Mode hors-ligne
-- 🇬🇦 Spécifique Gabon (TVA 18%, FCFA)
+# Tests
+pnpm test                 # Tests unitaires (watch)
+pnpm test:run             # Tests unitaires (une fois)
+pnpm test:e2e             # Tests E2E Playwright
 
-## 📂 Structure
+# Base de donnees
+pnpm db:types             # Generer les types TypeScript depuis Supabase
+```
+
+## Architecture
 
 ```
 gabon-pos/
-├── app/                 # Next.js App Router
-│   ├── (auth)/         # Routes authentification
-│   ├── (dashboard)/    # Routes protégées
-│   └── api/            # API endpoints
-├── components/         # Composants React
-├── lib/                # Utilitaires
-├── stores/             # Zustand stores
-├── schemas/            # Validation Zod
-├── types/              # Types TypeScript
-└── prisma/             # Base de données
+├── app/                        # Next.js App Router
+│   ├── (auth)/                 #   Login, register, PIN
+│   ├── (dashboard)/            #   Routes protegees
+│   │   ├── caisse/             #     Interface de caisse
+│   │   ├── salle/              #     Plan de salle
+│   │   ├── produits/           #     Gestion produits
+│   │   ├── stocks/             #     Gestion stocks
+│   │   ├── clients/            #     Gestion clients
+│   │   ├── employes/           #     Gestion employes
+│   │   ├── rapports/           #     Rapports et statistiques
+│   │   ├── parametres/         #     Configuration
+│   │   └── admin/              #     Administration (blog, docs)
+│   ├── (public)/               #   Pages publiques
+│   └── api/                    #   API Routes
+├── actions/                    # Server Actions (mutations)
+├── components/
+│   ├── ui/                     #   Composants Radix UI
+│   ├── composed/               #   Composants composes
+│   ├── caisse/                 #   Composants caisse
+│   ├── salle/                  #   Composants plan de salle
+│   └── ...                     #   Autres modules
+├── lib/
+│   ├── db/                     #   Couche base de donnees Supabase
+│   ├── auth/                   #   Authentification
+│   ├── print/                  #   Impression ESC/POS
+│   └── design-system/          #   Utilitaires design
+├── stores/                     # Zustand (cart, session, UI)
+├── schemas/                    # Schemas Zod
+├── types/                      # Types TypeScript
+├── supabase/
+│   ├── migrations/             #   Migrations SQL
+│   └── functions/              #   Edge Functions
+└── tests/
+    ├── unit/                   #   Tests Vitest
+    └── e2e/                    #   Tests Playwright
 ```
 
-## 🔧 Configuration
+## Configuration metier
 
-- **Devise**: FCFA (XAF) - sans décimales
-- **TVA**: 18% standard, 10% réduit
-- **Timezone**: Africa/Libreville
-- **Mobile Money**: Airtel Money, Moov Money
+| Parametre | Valeur |
+|-----------|--------|
+| **Devise** | XAF / FCFA (sans decimales) |
+| **TVA standard** | 18% |
+| **TVA reduite** | 10% |
+| **Timezone** | Africa/Libreville |
+| **Langue** | Francais |
+| **Mobile Money** | Airtel Money, Moov Money |
+| **Format ticket** | YYYYMMDD00001 (sequentiel/jour) |
 
-## 📄 Licence
+## Roles utilisateurs
 
-MIT
+| Role | Acces |
+|------|-------|
+| **Super Admin** | Acces complet, gestion multi-etablissements |
+| **Admin** | Configuration etablissement, employes, rapports |
+| **Manager** | Produits, stocks, rapports, cloture de caisse |
+| **Caissier** | Caisse, encaissements, consultation rapports |
+| **Serveur** | Prise de commande, gestion tables |
+
+## Contribuer
+
+1. Fork le projet
+2. Creer une branche (`git checkout -b feature/ma-fonctionnalite`)
+3. Commit les changements (`git commit -m 'feat: ajouter ma fonctionnalite'`)
+4. Push la branche (`git push origin feature/ma-fonctionnalite`)
+5. Ouvrir une Pull Request
+
+## Licence
+
+Ce projet est sous licence [MIT](LICENSE).
 
 ---
 
-**Oréma N+** - Le cœur de votre commerce 🧡
+<div align="center">
+
+**Orema N+** — Le coeur de votre commerce
+
+Concu avec soin pour le Gabon et l'Afrique centrale
+
+</div>
